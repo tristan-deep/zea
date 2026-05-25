@@ -855,7 +855,7 @@ class DataSpec(Spec):
     # Pipeline data products (plain arrays)
     raw_data: np.ndarray | None = None
     aligned_data: np.ndarray | None = None
-    # Spatial map data products (with extent metadata)
+    # Spatial map data products (with coordinates metadata)
     beamformed_data: BeamformedData | dict | None = None
     envelope_data: EnvelopeData | dict | None = None
     image: Image | dict | None = None
@@ -929,7 +929,7 @@ class DataSpec(Spec):
                     f"Custom data key '{key}' must be a spatial map "
                     f"(a dict with at least a 'values' key), not a flat array. "
                     f"Only 'raw_data' and 'aligned_data' are accepted as flat arrays. "
-                    f"Wrap your data: {{'values': array, 'extent': extent_array}}."
+                    f"Wrap your data: {{'values': array, 'coordinates': coordinates_array}}."
                 )
             setattr(self, key, value)
 
@@ -1663,9 +1663,17 @@ class FileSpec(Spec):
         # Legacy compatibility
         # ------------------------------------------------------------------
 
-        # 1. Map legacy root attribute 'probe' → 'probe_name'
-        if "probe_name" not in kwargs and "probe" in file.attrs:
-            kwargs["probe_name"] = file.attrs["probe"]
+        # 1. Map legacy root attribute 'probe' → 'probe_name' by delegating
+        #    to File.probe_name, which already checks both 'probe_name' and
+        #    'probe' attrs in priority order.
+        if "probe_name" not in kwargs:
+            try:
+                kwargs["probe_name"] = file.probe_name
+            except AttributeError:
+                log.warning(
+                    "File '%s' has no 'probe_name' or 'probe' attribute; probe name will be None.",
+                    file.filename,
+                )
 
         # 2. Filter scan dict to only keys recognised by Scan.SCHEMA so
         #    that legacy scalar fields (n_frames, n_ax, n_el, n_tx, n_ch,
@@ -1674,23 +1682,27 @@ class FileSpec(Spec):
             scan_schema_keys = set(ScanSpec.SCHEMA.keys())
             kwargs["scan"] = {k: v for k, v in kwargs["scan"].items() if k in scan_schema_keys}
 
-        # 3. Handle legacy flat `data/image` datasets.  In old files
-        #    `data/image` is a plain array (n_frames, z, x) rather than an
-        #    Image group with values + extent.  If that is the case we
-        #    remove it from the data dict so it does not fail validation as
-        #    an Image spec.
+        # 3. Handle legacy flat `data/<key>` datasets.  In old files spatial
+        #    maps (image, image_sc, envelope_data, …) were stored as plain
+        #    arrays (n_frames, z, x) rather than groups with values +
+        #    coordinates.  Wrap them as {"values": array} so DataSpec accepts
+        #    them.  raw_data and aligned_data are valid as flat arrays and are
+        #    left untouched.
         if "data" in kwargs and isinstance(kwargs["data"], dict):
             data_dict = kwargs["data"]
             for key in list(data_dict.keys()):
+                if not isinstance(data_dict[key], np.ndarray):
+                    continue
                 schema_entry = DataSpec.SCHEMA.get(key)
-                if schema_entry is not None and "spec" in schema_entry:
-                    # The spec expects a nested group (dict), but we got a
-                    # plain array from a legacy flat dataset.
-                    if isinstance(data_dict[key], np.ndarray):
-                        log.debug(
-                            f"Skipping legacy flat dataset 'data/{key}' "
-                            "that cannot be validated as a nested spec."
-                        )
-                        del data_dict[key]
+                # raw_data / aligned_data are plain-array fields — skip them.
+                if schema_entry is not None and "spec" not in schema_entry:
+                    continue
+                log.warning(
+                    "Legacy flat dataset 'data/%s' has no spatial coordinates. "
+                    "The array has been loaded as 'values'; coordinates information "
+                    "was not stored in this file and will be None.",
+                    key,
+                )
+                data_dict[key] = {"values": data_dict[key]}
 
         return cls(**kwargs)

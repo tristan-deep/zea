@@ -337,6 +337,7 @@ def test_metadata_accepts_custom_signal_nd_keys_and_warns(tmp_path):
             "sampling_frequency": np.float32(120.0),
         }
     }
+
     dataset = FileSpec(
         data=data,
         scan=_scan_minimal(n_frames=n_frames, n_tx=n_tx, n_el=n_el),
@@ -345,6 +346,7 @@ def test_metadata_accepts_custom_signal_nd_keys_and_warns(tmp_path):
     )
     assert isinstance(dataset.metadata.custom_signal, SignalND)
     assert "custom_signal" in dataset.to_dict()["metadata"]
+
     with patch("zea.log.warning") as mock_warn:
         File.create(
             tmp_path / "test.hdf5",
@@ -379,6 +381,7 @@ def test_data_accepts_custom_map_keys_and_warns(tmp_path):
             "unit": "mm",
         },
     }
+
     dataset = FileSpec(
         data=data,
         scan=_scan_minimal(n_frames=n_frames, n_tx=n_tx, n_el=n_el),
@@ -386,6 +389,7 @@ def test_data_accepts_custom_map_keys_and_warns(tmp_path):
     assert isinstance(dataset.data, DataSpec)
     assert isinstance(dataset.data.custom_map, Map)
     assert "custom_map" in dataset.to_dict()["data"]
+
     with patch("zea.log.warning") as mock_warn:
         File.create(
             tmp_path / "test.hdf5",

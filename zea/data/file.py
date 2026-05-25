@@ -8,6 +8,7 @@ import h5py
 import numpy as np
 from keras.utils import pad_sequences
 
+import zea
 from zea import log
 from zea.data.spec import DataSpec, FileSpec, MetadataSpec, MetricsSpec, ScanSpec
 from zea.internal.checks import _DATA_TYPES, _NON_IMAGE_DATA_TYPES
@@ -74,6 +75,23 @@ def assert_key(file: h5py.File, key: str):
         raise KeyError(f"{key} not found in file")
 
 
+def _parse_version(v: str) -> tuple[int, ...]:
+    return tuple(int(p) for p in v.split(".")[:3] if p.isdigit())
+
+
+def _warn_if_legacy_file(file: "File") -> None:
+    """Warn if *file* has no zea_version or was written before v0.1.0."""
+    version = file.attrs.get("zea_version", None)
+    if version is None or _parse_version(version) < (0, 1, 0):
+        legacy_version = version if version is not None else "<0.1.0"
+        log.warning(
+            f"This ``zea.File`` '{file.filename}' was created with a legacy version of "
+            f"zea ({legacy_version}), while you are using zea v{zea.__version__}. "
+            "It may behave in unexpected ways. Install an earlier version of zea<0.1.0 for full "
+            "compatibility or re-save the file with zea v0.1.0 or later (e.g. via File.create)."
+        )
+
+
 def _warn_custom_keys(data: dict, metadata: dict):
     """Warn about custom keys in data/metadata dicts when saving."""
     custom_maps = [k for k in data if k not in DataSpec.SCHEMA]
@@ -108,13 +126,24 @@ class File(h5py.File):
                 the prefix 'hf://', in which case it will be resolved to a
                 huggingface path.
             mode (str, optional): The mode to open the file in. Defaults to "r".
+            revision (str, optional): HuggingFace revision (branch, tag, or commit hash)
+                to download from. Only used when ``name`` starts with ``hf://``.
+                Defaults to ``"main"``. Example: ``revision="v0.1.0"``.
+            repo_type (str, optional): HuggingFace repository type. Only used when
+                ``name`` starts with ``hf://``. Defaults to ``"dataset"``.
+            cache_dir (str or Path, optional): Local cache directory for downloaded
+                HuggingFace files. Only used when ``name`` starts with ``hf://``.
             *args: Additional arguments to pass to h5py.File.
             **kwargs: Additional keyword arguments to pass to h5py.File.
         """
 
         # Resolve huggingface path
         if str(name).startswith(HF_PREFIX):
-            name = _hf_resolve_path(str(name))
+            hf_kwargs = {}
+            for key in ("revision", "repo_type", "cache_dir"):
+                if key in kwargs:
+                    hf_kwargs[key] = kwargs.pop(key)
+            name = _hf_resolve_path(str(name), **hf_kwargs)
 
         # Disable locking for read mode by default
         if "locking" not in kwargs and mode == "r":
@@ -123,6 +152,10 @@ class File(h5py.File):
 
         # Initialize the h5py.File
         super().__init__(name, mode, *args, **kwargs)
+
+        # Warn when opening an existing file that pre-dates zea v0.1.0
+        if mode in ("r", "r+"):
+            _warn_if_legacy_file(self)
 
     @property
     def path(self):
@@ -762,7 +795,7 @@ def load_file_all_data_types(
 
     data_dict = {}
 
-    # Data types stored as HDF5 groups (Map-based specs with values/extent)
+    # Data types stored as HDF5 groups (Map-based specs with values/coordinates)
     _GROUP_DATA_TYPES = {"beamformed_data", "envelope_data", "image_sc", "image"}
 
     with File(path, mode="r") as file:
