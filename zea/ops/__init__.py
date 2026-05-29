@@ -138,7 +138,6 @@ version-controlled, shared, or reproduced on any machine.
 .. testcleanup::
 
     import os
-
     os.remove("bmode_pipeline.yaml")
 
 Pipelines hosted on the `Hugging Face Hub <https://huggingface.co/zeahub>`_ can be loaded
