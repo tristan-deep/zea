@@ -126,7 +126,6 @@ jobs:
 
   heavy-tests:
     needs: [image]
-    if: github.base_ref != 'openh-rf'
     runs-on: self-hosted
     timeout-minutes: 100
     concurrency:
@@ -155,6 +154,7 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           slug: ${{ env.MAIN_REPO }}
           flags: heavy
+
   notebook-tests:
     name: notebook-tests (${{ matrix.label }})
     needs: [image]
