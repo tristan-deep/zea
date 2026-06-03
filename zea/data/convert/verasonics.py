@@ -1383,7 +1383,6 @@ def get_answer(prompt, additional_options=None):
 def make_dataset_card(repo_id):
     return f"""\
 ---
-license: other
 zea_repo_id: {repo_id}
 ---
 
@@ -1408,6 +1407,10 @@ def convert_verasonics(args):
             - allow_accumulate (bool): Whether to allow accumulate mode.
             - device (str): Device to use for processing.
     """
+
+    if getattr(args, "upload", False):
+        assert args.hf_repo_id, "hf_repo_id must be provided when --upload is True."
+        assert args.revision, "revision must be provided when --upload is True."
 
     init_device(args.device)
 
