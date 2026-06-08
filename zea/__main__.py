@@ -1,63 +1,94 @@
-"""Main entry point for zea
+"""Entry point for the zea toolbox.
 
-Run as `zea --config path/to/config.yaml` to start the zea interface.
-Or do not pass a config file to open a file dialog to choose a config file.
+Usage::
+
+    zea process <dataset> <save_dir> [options]   # batch beamform a dataset
+    zea app [--share] [--server_port PORT]        # launch the Gradio visualizer
 
 """
 
 import argparse
-import sys
-from pathlib import Path
-
-from zea.visualize import set_mpl_style
 
 
-def get_parser():
-    """Command line argument parser"""
+def get_parser() -> argparse.ArgumentParser:
+    """Return the top-level argument parser with ``process`` and ``app`` subcommands."""
     parser = argparse.ArgumentParser(
-        description="Load and process ultrasound data based on a configuration file."
+        prog="zea",
+        description="zea ultrasound toolbox.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser.add_argument("-c", "--config", type=str, default=None, help="path to the config file.")
-    parser.add_argument(
-        "-t",
-        "--task",
-        default="view",
-        choices=["view"],
-        type=str,
-        help="Which task to run. Currently only 'view' is supported.",
+    subparsers = parser.add_subparsers(dest="command", metavar="command")
+    subparsers.required = True
+
+    # ── process ──────────────────────────────────────────────────────────────
+    from zea.data.process import get_parser as _process_parser
+
+    subparsers.add_parser(
+        "process",
+        help="Beamform a zea dataset using a pipeline YAML config.",
+        parents=[_process_parser(add_help=False)],
     )
-    parser.add_argument(
-        "--skip_validate_file",
-        default=False,
+
+    # ── app ──────────────────────────────────────────────────────────────────
+    app_p = subparsers.add_parser(
+        "app",
+        help="Launch the interactive Gradio dataset visualizer.",
+    )
+    app_p.add_argument(
+        "--share",
         action="store_true",
-        help="Skip zea file integrity checks. Use with caution.",
+        help="Create a public Gradio share link.",
     )
+    app_p.add_argument(
+        "--server_port",
+        type=int,
+        default=None,
+        help="Port for the Gradio server to listen on. Defaults to 7860.",
+    )
+
     return parser
 
 
-def main():
-    """main entrypoint for zea"""
+def main() -> None:
+    """Dispatch to the requested subcommand."""
     args = get_parser().parse_args()
 
-    set_mpl_style()
+    if args.command == "process":
+        from zea.data.process import run_processing
+        from zea.internal.device import init_device
 
-    wd = Path(__file__).parent.resolve()
-    sys.path.append(str(wd))
-
-    from zea.interface import Interface
-    from zea.internal.setup_zea import setup
-
-    config = setup(args.config)
-
-    if args.task == "view":
-        cli = Interface(
-            config,
-            validate_file=not args.skip_validate_file,
+        init_device()
+        config_path = args.config or f"{args.dataset}/config.yaml"
+        run_processing(
+            args.dataset,
+            config_path,
+            args.key,
+            args.n_frames,
+            args.save_dir,
+            args.save_as,
+            args.keep_keys,
+            args.timings,
+            args.num_threads,
+            args.overwrite,
+            args.keep_dynamic_range,
+            args.revision,
+            args.config_revision,
         )
 
-        cli.run(plot=True)
-    else:
-        raise ValueError(f"Unknown task {args.task}, see `zea --help` for available tasks.")
+    elif args.command == "app":
+        from zea.data.app import CSS, build_interface
+        from zea.internal.device import init_device
+
+        import gradio as gr
+
+        init_device()
+        demo = build_interface()
+        demo.launch(
+            share=args.share,
+            server_port=args.server_port,
+            theme=gr.themes.Soft(primary_hue="violet", secondary_hue="yellow"),
+            css=CSS,
+        )
 
 
 if __name__ == "__main__":
