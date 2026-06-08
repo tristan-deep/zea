@@ -11,6 +11,13 @@ File reading and visualization
    :prog: zea
 
 -------------------------------
+Process dataset (beamformer CLI)
+-------------------------------
+
+.. autoprogram:: zea.data.process:get_parser()
+   :prog: python -m zea.data.process
+
+-------------------------------
 Convert datasets
 -------------------------------
 
