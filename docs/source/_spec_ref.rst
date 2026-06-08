@@ -32,8 +32,8 @@ Every ``zea`` HDF5 file follows the layout shown below.
    │   ├── t0_delays                 float32  (n_tx, n_el)
    │   └── …
    ├── probe/
-   │   ├── name                      str  scalar
-   │   ├── type                      str  scalar
+   │   ├── name                      str
+   │   ├── type                      str
    │   ├── probe_geometry            float32  (n_el, 3)
    │   ├── probe_center_frequency    float32  scalar
    │   └── …
@@ -97,13 +97,13 @@ Fields marked :bdg-secondary:`optional` may be absent; all others are
       .. list-table::
          :header-rows: 1
          :widths: 22 16 18 7 27 10
-
+      
          * - Field
            - Type
            - Shape
            - Unit
            - Description
-           -
+           - 
          * - ``raw_data``
            - ``float32`` | ``int16``
            - (n_frames, n_tx, n_ax, n_el, n_ch)
@@ -114,61 +114,61 @@ Fields marked :bdg-secondary:`optional` may be absent; all others are
            - :class:`~zea.data.spec.AlignedData`
            - group
            - –
-           -
+           - 
            - |badge-opt|
          * - ``beamformed_data``
            - :class:`~zea.data.spec.BeamformedData`
            - group
            - –
-           -
+           - 
            - |badge-opt|
          * - ``envelope_data``
            - :class:`~zea.data.spec.EnvelopeData`
            - group
            - –
-           -
+           - 
            - |badge-opt|
          * - ``image``
            - :class:`~zea.data.spec.Image`
            - group
            - –
-           -
+           - 
            - |badge-opt|
          * - ``segmentation``
            - :class:`~zea.data.spec.Segmentation`
            - group
            - –
-           -
+           - 
            - |badge-opt|
          * - ``sos_map``
            - :class:`~zea.data.spec.SosMap`
            - group
            - –
-           -
+           - 
            - |badge-opt|
          * - ``strain_percentage_map``
            - :class:`~zea.data.spec.StrainPercentageMap`
            - group
            - –
-           -
+           - 
            - |badge-opt|
          * - ``shear_wave_elastography_map``
            - :class:`~zea.data.spec.ShearWaveElastographyMap`
            - group
            - –
-           -
+           - 
            - |badge-opt|
          * - ``tissue_doppler``
            - :class:`~zea.data.spec.TissueDopplerMap`
            - group
            - –
-           -
+           - 
            - |badge-opt|
          * - ``color_doppler``
            - :class:`~zea.data.spec.ColorDopplerMap`
            - group
            - –
-           -
+           - 
            - |badge-opt|
 
       **Grouped data products**
@@ -189,12 +189,12 @@ Fields marked :bdg-secondary:`optional` may be absent; all others are
          .. list-table::
             :header-rows: 1
             :widths: 22 20 28 10 10
-
+         
             * - Field
               - Type
               - Shape
               - Unit
-              -
+              - 
             * - ``values``
               - ``float32`` | ``int16``
               - (n_frames, n_tx, n_ax, n_el, n_ch)
@@ -213,12 +213,12 @@ Fields marked :bdg-secondary:`optional` may be absent; all others are
          .. list-table::
             :header-rows: 1
             :widths: 22 20 28 10 10
-
+         
             * - Field
               - Type
               - Shape
               - Unit
-              -
+              - 
             * - ``values``
               - ``float32``
               - (n_frames, z, x, y, n_ch) or (n_frames, z, x, n_ch)
@@ -262,12 +262,12 @@ Fields marked :bdg-secondary:`optional` may be absent; all others are
          .. list-table::
             :header-rows: 1
             :widths: 22 20 28 10 10
-
+         
             * - Field
               - Type
               - Shape
               - Unit
-              -
+              - 
             * - ``values``
               - ``float32``
               - (n_frames, z, x, y) or (n_frames, z, x)
@@ -311,12 +311,12 @@ Fields marked :bdg-secondary:`optional` may be absent; all others are
          .. list-table::
             :header-rows: 1
             :widths: 22 20 28 10 10
-
+         
             * - Field
               - Type
               - Shape
               - Unit
-              -
+              - 
             * - ``values``
               - ``float32`` | ``uint8``
               - (n_frames, x, z, y) or (n_frames, x, z)
@@ -360,12 +360,12 @@ Fields marked :bdg-secondary:`optional` may be absent; all others are
          .. list-table::
             :header-rows: 1
             :widths: 22 20 28 10 10
-
+         
             * - Field
               - Type
               - Shape
               - Unit
-              -
+              - 
             * - ``values``
               - ``bool``
               - (n_frames, z, x, y, n_spatial_ch) or (n_frames, z, x, n_spatial_ch)
@@ -409,12 +409,12 @@ Fields marked :bdg-secondary:`optional` may be absent; all others are
          .. list-table::
             :header-rows: 1
             :widths: 22 20 28 10 10
-
+         
             * - Field
               - Type
               - Shape
               - Unit
-              -
+              - 
             * - ``values``
               - ``float32``
               - (n_frames, z, x, y, n_spatial_ch) or (n_frames, z, x, y) or (n_frames, z, x, n_spatial_ch) or (n_frames, z, x)
@@ -458,12 +458,12 @@ Fields marked :bdg-secondary:`optional` may be absent; all others are
          .. list-table::
             :header-rows: 1
             :widths: 22 20 28 10 10
-
+         
             * - Field
               - Type
               - Shape
               - Unit
-              -
+              - 
             * - ``values``
               - ``float32``
               - (n_frames, z, x, y, n_spatial_ch) or (n_frames, z, x, y) or (n_frames, z, x, n_spatial_ch) or (n_frames, z, x)
@@ -507,12 +507,12 @@ Fields marked :bdg-secondary:`optional` may be absent; all others are
          .. list-table::
             :header-rows: 1
             :widths: 22 20 28 10 10
-
+         
             * - Field
               - Type
               - Shape
               - Unit
-              -
+              - 
             * - ``values``
               - ``float32``
               - (n_frames, z, x, y, n_spatial_ch) or (n_frames, z, x, y) or (n_frames, z, x, n_spatial_ch) or (n_frames, z, x)
@@ -556,12 +556,12 @@ Fields marked :bdg-secondary:`optional` may be absent; all others are
          .. list-table::
             :header-rows: 1
             :widths: 22 20 28 10 10
-
+         
             * - Field
               - Type
               - Shape
               - Unit
-              -
+              - 
             * - ``values``
               - ``float32``
               - (n_frames, z, x, y, n_spatial_ch) or (n_frames, z, x, y) or (n_frames, z, x, n_spatial_ch) or (n_frames, z, x)
@@ -605,12 +605,12 @@ Fields marked :bdg-secondary:`optional` may be absent; all others are
          .. list-table::
             :header-rows: 1
             :widths: 22 20 28 10 10
-
+         
             * - Field
               - Type
               - Shape
               - Unit
-              -
+              - 
             * - ``values``
               - ``float32``
               - (n_frames, z, x, y, n_spatial_ch) or (n_frames, z, x, y) or (n_frames, z, x, n_spatial_ch) or (n_frames, z, x)
@@ -655,13 +655,13 @@ Fields marked :bdg-secondary:`optional` may be absent; all others are
       .. list-table::
          :header-rows: 1
          :widths: 22 16 18 7 27 10
-
+      
          * - Field
            - Type
            - Shape
            - Unit
            - Description
-           -
+           - 
          * - ``sampling_frequency``
            - ``float32``
            - scalar
@@ -761,13 +761,13 @@ Fields marked :bdg-secondary:`optional` may be absent; all others are
       .. list-table::
          :header-rows: 1
          :widths: 22 16 18 7 27 10
-
+      
          * - Field
            - Type
            - Shape
            - Unit
            - Description
-           -
+           - 
          * - ``name``
            - ``str``
            - scalar
@@ -834,18 +834,18 @@ Fields marked :bdg-secondary:`optional` may be absent; all others are
       .. list-table::
          :header-rows: 1
          :widths: 22 16 18 7 27 10
-
+      
          * - Field
            - Type
            - Shape
            - Unit
            - Description
-           -
+           - 
          * - ``subject``
            - :class:`~zea.data.spec.Subject`
            - group
            - –
-           -
+           - 
            - |badge-opt|
          * - ``credit``
            - ``str``
@@ -893,12 +893,12 @@ Fields marked :bdg-secondary:`optional` may be absent; all others are
          .. list-table::
             :header-rows: 1
             :widths: 22 20 28 10 10
-
+         
             * - Field
               - Type
               - Shape
               - Unit
-              -
+              - 
             * - ``id``
               - ``str``
               - scalar
@@ -933,12 +933,12 @@ Fields marked :bdg-secondary:`optional` may be absent; all others are
          .. list-table::
             :header-rows: 1
             :widths: 22 20 28 10 10
-
+         
             * - Field
               - Type
               - Shape
               - Unit
-              -
+              - 
             * - ``anatomy``
               - ``str``
               - (n_frames) or scalar
@@ -968,13 +968,13 @@ Fields marked :bdg-secondary:`optional` may be absent; all others are
          .. list-table::
             :header-rows: 1
             :widths: 22 16 18 7 27 10
-
+         
             * - Field
               - Type
               - Shape
               - Unit
               - Description
-              -
+              - 
             * - ``translation``
               - ``float32``
               - (T, 3)
@@ -1014,13 +1014,13 @@ Fields marked :bdg-secondary:`optional` may be absent; all others are
          .. list-table::
             :header-rows: 1
             :widths: 22 16 18 7 27 10
-
+         
             * - Field
               - Type
               - Shape
               - Unit
               - Description
-              -
+              - 
             * - ``samples``
               - ``uint8`` | ``float32`` | ``int16`` | ``complex64``
               - (T)
@@ -1049,23 +1049,23 @@ Fields marked :bdg-secondary:`optional` may be absent; all others are
       .. list-table::
          :header-rows: 1
          :widths: 22 16 18 7 27 10
-
+      
          * - Field
            - Type
            - Shape
            - Unit
            - Description
-           -
+           - 
          * - ``common_midpoint_phase_error``
            - ``float32``
            - (n_frames)
            - –
-           -
+           - 
            - |badge-opt|
          * - ``coherence_factor``
            - ``float32``
            - (n_frames)
            - –
-           -
+           - 
            - |badge-opt|
 
