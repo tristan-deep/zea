@@ -128,6 +128,15 @@ def _get_config_parameters(config: Config) -> dict:
     return params.as_dict() if hasattr(params, "as_dict") else dict(params)
 
 
+# Keys that carry raw RF / pre-beamformed data and always require a pipeline.
+_PIPELINE_REQUIRED_KEYS = frozenset({"data/raw_data", "data/aligned_data/values"})
+
+
+def _key_requires_pipeline(key: str) -> bool:
+    """Return True if ``key`` holds raw RF/pre-beamformed data that needs a pipeline."""
+    return (key or "").strip() in _PIPELINE_REQUIRED_KEYS
+
+
 def _build_probe_dict(probe) -> dict:
     """Build a minimal probe dict for File.create() from a Probe object."""
     probe_dict = {}
@@ -148,6 +157,57 @@ def _build_probe_dict(probe) -> dict:
         if val is not None:
             probe_dict[field] = val
     return probe_dict
+
+
+def _run_passthrough(
+    dataset_path: str,
+    key: str,
+    n_frames: int | None,
+    save_dir: Path,
+    save_as: str,
+    overwrite: bool,
+    **hf_kwargs,
+) -> None:
+    """Save data frames directly without a beamforming pipeline."""
+    if save_as not in ("gif", "mp4", "hdf5"):
+        raise ValueError(f"Passthrough mode only supports gif/mp4/hdf5, got {save_as!r}")
+
+    ds = Dataset(dataset_path, validate=False, **hf_kwargs)
+    file_paths = list(ds.file_paths)
+    ds.close()
+
+    pbar = keras.utils.Progbar(len(file_paths))
+    for file_path in file_paths:
+        with File(file_path) as f:
+            data_key = f.format_key(key)
+            arr = np.asarray(f[data_key][:n_frames] if n_frames else f[data_key][:])
+            filestem = f.stem
+
+        # Ensure (N, H, W) — squeeze any leading single-element dims
+        while arr.ndim > 3 and arr.shape[0] == 1:
+            arr = arr[0]
+        if arr.ndim == 2:
+            arr = arr[np.newaxis]  # add frame axis
+
+        if arr.dtype != np.uint8:
+            lo, hi = float(arr.min()), float(arr.max())
+            arr = (
+                ((arr - lo) / (hi - lo) * 255).astype(np.uint8)
+                if hi > lo
+                else np.zeros_like(arr, dtype=np.uint8)
+            )
+
+        save_path = save_dir / f"{filestem}.{save_as}"
+        if save_path.exists() and not overwrite:
+            log.warning(f"File {save_path} already exists. Use --overwrite to replace it.")
+        else:
+            if save_as in ("gif", "mp4"):
+                io_lib.save_video(arr, save_path, fps=20)
+            elif save_as == "hdf5":
+                File.create(save_path, data={"image": {"values": arr}}, overwrite=overwrite)
+            log.info(f"Saved {log.yellow(save_path)}")
+
+        pbar.add(1)
 
 
 def run_processing(
@@ -180,7 +240,20 @@ def run_processing(
     )
     config = Config.from_path(config_path, **config_hf_kwargs)
     config_params = _get_config_parameters(config)
-    pipeline = Pipeline.from_path(config_path, with_batch_dim=False, **config_hf_kwargs)
+    try:
+        pipeline = Pipeline.from_path(config_path, with_batch_dim=False, **config_hf_kwargs)
+    except (ValueError, KeyError) as exc:
+        if _key_requires_pipeline(key):
+            raise
+        log.warning(
+            f"No pipeline found in config ({exc}). "
+            f"Key '{key}' does not require beamforming — saving data as-is."
+        )
+        save_dir.mkdir(parents=True, exist_ok=True)
+        _run_passthrough(
+            dataset_path, key, n_frames, save_dir, save_as, overwrite, **dataset_hf_kwargs
+        )
+        return
 
     save_dir.mkdir(parents=True, exist_ok=True)
 

@@ -18,9 +18,9 @@ The ``zea`` command exposes two subcommands:
 .. autoprogram:: zea.__main__:get_parser()
    :prog: zea
 
--------------------------------
+--------------------------------
 Process dataset (standalone CLI)
--------------------------------
+--------------------------------
 
 The beamformer can also be invoked directly as a module (equivalent to ``zea process``):
 

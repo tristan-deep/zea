@@ -16,9 +16,7 @@ def test_subcommands_exist():
     """Both 'process' and 'app' subcommands must be registered."""
     p = _parser()
     # argparse stores subparser choices on the subparsers action
-    subparsers_action = next(
-        a for a in p._actions if hasattr(a, "_name_parser_map")
-    )
+    subparsers_action = next(a for a in p._actions if hasattr(a, "_name_parser_map"))
     assert "process" in subparsers_action._name_parser_map
     assert "app" in subparsers_action._name_parser_map
 
