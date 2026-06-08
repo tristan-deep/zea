@@ -57,10 +57,10 @@ def get_parser() -> argparse.ArgumentParser:
         help="Path to config.yaml. Defaults to <dataset>/config.yaml.",
     )
     parser.add_argument(
-        "--data_type",
+        "--key",
         type=str,
-        default="raw_data",
-        help="Data type to load from each file (e.g. raw_data, aligned_data).",
+        default="data/raw_data",
+        help="Data type to load from each file (e.g. data/raw_data, data/aligned_data).",
     )
     parser.add_argument(
         "--n_frames",
@@ -90,6 +90,18 @@ def get_parser() -> argparse.ArgumentParser:
         type=int,
         default=16,
         help="Number of threads used by the dataloader. Default is 16.",
+    )
+    parser.add_argument(
+        "--revision",
+        type=str,
+        default=None,
+        help="HuggingFace revision for the dataset (branch, tag, or commit hash). Only used for hf:// paths.",
+    )
+    parser.add_argument(
+        "--config_revision",
+        type=str,
+        default=None,
+        help="HuggingFace revision for the config (branch, tag, or commit hash). Defaults to --revision if omitted.",
     )
     parser.add_argument(
         "--overwrite",
@@ -140,7 +152,7 @@ def _build_probe_dict(probe) -> dict:
 def run_processing(
     dataset_path: str,
     config_path: str,
-    data_type: str,
+    key: str,
     n_frames: int | None,
     save_dir: Path,
     save_as: str = "gif",
@@ -149,6 +161,8 @@ def run_processing(
     num_threads=16,
     overwrite=False,
     keep_dynamic_range=False,
+    revision: str | None = None,
+    config_revision: str | None = None,
 ) -> None:
     if keep_dynamic_range and save_as != "hdf5":
         raise ValueError("--keep_dynamic_range is only supported with --save_as hdf5.")
@@ -157,16 +171,18 @@ def run_processing(
     if save_as not in SUPPORTED_FORMATS:
         raise ValueError(f"save_as must be one of {SUPPORTED_FORMATS}, got {save_as!r}")
 
-    config = Config.from_path(config_path)
+    dataset_hf_kwargs = {"revision": revision} if revision is not None else {}
+    config_hf_kwargs = {"revision": config_revision if config_revision is not None else revision} if (config_revision or revision) else {}
+    config = Config.from_path(config_path, **config_hf_kwargs)
     config_params = _get_config_parameters(config)
-    pipeline = Pipeline.from_path(config_path, with_batch_dim=False)
+    pipeline = Pipeline.from_path(config_path, with_batch_dim=False, **config_hf_kwargs)
 
     save_dir.mkdir(parents=True, exist_ok=True)
 
-    dataset_files = Dataset(dataset_path, validate=False)
+    dataset_files = Dataset(dataset_path, validate=False, **dataset_hf_kwargs)
     dataloader = Dataloader(
         dataset_path,
-        key=data_type,
+        key=key,
         batch_size=None,
         shuffle=False,
         return_filename=True,
@@ -175,6 +191,7 @@ def run_processing(
         num_threads=num_threads,
         insert_frame_axis=False,
         sort_files=True,
+        **dataset_hf_kwargs,
     )
     dataset_files.close()
 
@@ -263,7 +280,7 @@ def run_processing(
                     filestem = f.stem
                     parameters = f.load_parameters(**config_params)
 
-                selected_transmits = [int(t) for t in parameters.selected_transmits]
+                selected_transmits = np.array([int(t) for t in parameters.selected_transmits])
                 try:
                     fps = int(round(parameters.frames_per_second))
                 except (ValueError, AttributeError):
@@ -278,7 +295,7 @@ def run_processing(
             processed_frame = output["data"]
 
             if not keep_dynamic_range:
-                dr = parameters.dynamic_range
+                dr = getattr(parameters, "dynamic_range", None)
                 dynamic_range = tuple(dr) if dr is not None else (-60, 0)
                 processed_frame = display.to_8bit(processed_frame, dynamic_range, pillow=False)
 
@@ -304,7 +321,7 @@ def main() -> None:
     run_processing(
         args.dataset,
         config_path,
-        args.data_type,
+        args.key,
         args.n_frames,
         args.save_dir,
         args.save_as,
@@ -313,6 +330,8 @@ def main() -> None:
         args.num_threads,
         args.overwrite,
         args.keep_dynamic_range,
+        args.revision,
+        args.config_revision,
     )
 
 

@@ -128,6 +128,9 @@ display-headless = [
 models = [
     "onnxruntime>=1.15",
 ]
+app = [
+    "gradio>=4.0",
+]
 # these are just here for .readthedocs.yaml
 # please for proper install (with GPU support)
 # install manually
