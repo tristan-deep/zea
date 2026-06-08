@@ -1002,8 +1002,9 @@ class File(h5py.File):
 
         assert isinstance(key, str), f"Key must be a string, got {type(key)}. "
 
-        # Return the key if it is already a valid top-level key (flat layout or new-format)
-        if key in self.keys():
+        # Return the key if it is already reachable (handles nested paths like
+        # "tracks/track_0/data/raw_data", not just top-level keys).
+        if key in self:
             return key
 
         # New-format: redirect bare or data/-prefixed keys to tracks/track_0/
@@ -1019,9 +1020,8 @@ class File(h5py.File):
         if "data/" not in key:
             key = "data/" + key
 
-        assert key in self.keys(), (
-            f"Key {key} not found in file. Available keys: {list(self['data'].keys())}"
-        )
+        available = list(self["data"].keys()) if super().__contains__("data") else list(self.keys())
+        assert key in self, f"Key {key} not found in file. Available keys: {available}"
 
         return key
 
@@ -1587,24 +1587,33 @@ def load_file_all_data_types(
             item = file[_key]
 
             if isinstance(item, h5py.Group) and data_type.value in _GROUP_DATA_TYPES:
-                # Map-based group: load all sub-datasets as a dict
+                # Map-based group: load all sub-datasets as a dict.
+                # Compute per-dataset indices once: for non-TX types, a transmit-selection
+                # tuple must not be applied to spatial dimensions.
+                if (
+                    isinstance(_indices, tuple)
+                    and len(_indices) > 1
+                    and data_type.value not in _GROUP_TYPES_WITH_TX_AXIS
+                ):
+                    indices_for_ds = (_indices[0],)
+                else:
+                    indices_for_ds = _indices
+
                 group_dict = {}
                 for sub_key in item.keys():
                     ds = item[sub_key]
                     if isinstance(ds, h5py.Dataset):
                         if sub_key == "values":
-                            # Apply only the frame index to types without a transmit axis so
-                            # the transmit-selection element of a tuple does not accidentally
-                            # slice a spatial dimension.
-                            if (
-                                isinstance(_indices, tuple)
-                                and len(_indices) > 1
-                                and data_type.value not in _GROUP_TYPES_WITH_TX_AXIS
-                            ):
-                                indices_for_ds = (_indices[0],)
-                            else:
-                                indices_for_ds = _indices
                             group_dict[sub_key] = ds[indices_for_ds]
+                        elif sub_key == "coordinates":
+                            # Coordinates may omit the leading frame axis (broadcast mode —
+                            # one grid shared across all frames). Only apply frame indexing
+                            # when the first dim matches the values dataset's first dim.
+                            values_ds = item.get("values")
+                            if values_ds is not None and ds.shape[0] == values_ds.shape[0]:
+                                group_dict[sub_key] = ds[indices_for_ds]
+                            else:
+                                group_dict[sub_key] = ds[()]
                         elif h5py.check_string_dtype(ds.dtype) is not None:
                             val = ds.asstr()[()]
                             if isinstance(val, np.ndarray) and val.dtype == object:
