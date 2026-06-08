@@ -220,17 +220,22 @@ def get_band_pass_filter(num_taps, sampling_frequency, f1, f2, validate=True):
     f2 = f2 / nyq
 
     if validate:
-        if f1 <= 0 or f2 >= 1:
-            raise ValueError(
-                f"Invalid cutoff frequency: frequencies must be greater than 0 and less than fs/2. "
-                f"Got f1={f1 * nyq} Hz, f2={f2 * nyq} Hz."
-            )
-
-        if f1 >= f2:
-            raise ValueError(
-                f"Invalid cutoff frequencies: the frequencies must be strictly increasing. "
-                f"Got f1={f1 * nyq} Hz, f2={f2 * nyq} Hz."
-            )
+        # float() raises on JAX traced values (inside jit) — skip validation then.
+        try:
+            f1c, f2c, nyqc = float(f1), float(f2), float(nyq)
+        except Exception:
+            pass  # traced values: inside a jit context, validation not possible
+        else:
+            if f1c <= 0 or f2c >= 1:
+                raise ValueError(
+                    "Invalid cutoff frequency: frequencies must be greater than 0 and "
+                    f"less than fs/2. Got f1={f1c * nyqc:.1f} Hz, f2={f2c * nyqc:.1f} Hz."
+                )
+            if f1c >= f2c:
+                raise ValueError(
+                    "Invalid cutoff frequencies: must be strictly increasing. "
+                    f"Got f1={f1c * nyqc:.1f} Hz, f2={f2c * nyqc:.1f} Hz."
+                )
 
     # Build up the coefficients.
     alpha = 0.5 * (num_taps - 1)
