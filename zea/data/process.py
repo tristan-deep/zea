@@ -96,13 +96,19 @@ def get_parser(add_help: bool = True) -> argparse.ArgumentParser:
         "--revision",
         type=str,
         default=None,
-        help="HuggingFace revision for the dataset (branch, tag, or commit hash). Only used for hf:// paths.",
+        help=(
+            "HuggingFace revision for the dataset (branch, tag, or commit hash). "
+            "Only used for hf:// paths."
+        ),
     )
     parser.add_argument(
         "--config_revision",
         type=str,
         default=None,
-        help="HuggingFace revision for the config (branch, tag, or commit hash). Defaults to --revision if omitted.",
+        help=(
+            "HuggingFace revision for the config (branch, tag, or commit hash). "
+            "Defaults to --revision if omitted."
+        ),
     )
     parser.add_argument(
         "--overwrite",

@@ -635,7 +635,6 @@ def run_checks(
             lines.append(line)
         return "".join(lines), image
 
-    dataset_hf_kwargs = {"revision": dataset_revision} if dataset_revision else {}
     eff_config_rev = config_revision if config_revision is not None else dataset_revision
     config_hf_kwargs = {"revision": eff_config_rev} if eff_config_rev else {}
 
@@ -721,7 +720,8 @@ def run_checks(
                     _html_fail(
                         "Pipeline required",
                         f"Key '{key}' contains raw RF data — a valid pipeline config is needed. "
-                        "Provide a config with a 'pipeline:' section or select a different data key.",
+                        "Provide a config with a 'pipeline:' section or "
+                        "select a different data key.",
                     )
                 )
                 return
