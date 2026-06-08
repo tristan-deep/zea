@@ -236,6 +236,13 @@ class Spec:
         if isinstance(value, (str, bytes)):
             return value
 
+        # Auto-convert list/tuple to numpy array (applies float normalization if relevant).
+        if isinstance(value, (list, tuple)):
+            arr = np.asarray(value)
+            if expected_float_dtype is not None and np.issubdtype(arr.dtype, np.floating):
+                return arr.astype(expected_float_dtype, copy=False)
+            return arr
+
         if hasattr(value, "dtype"):
             value_dtype = np.dtype(value.dtype)
 
