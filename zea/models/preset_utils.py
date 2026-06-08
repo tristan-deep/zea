@@ -98,7 +98,7 @@ def get_file(preset, path):
             return _download_from_hf(repo_id, filename)
         except huggingface_hub.utils.RepositoryNotFoundError:
             # Try to login and retry download
-            huggingface_hub.login(new_session=False)
+            huggingface_hub.login()
             return _download_from_hf(repo_id, filename)
         except HFValidationError as e:
             raise ValueError(

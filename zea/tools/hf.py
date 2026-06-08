@@ -26,7 +26,7 @@ def load_model_from_hf(repo_id, revision="main", verbose=True):
         model_dir (Path): The path to the downloaded model directory.
 
     """
-    login(new_session=False)
+    login()
 
     model_dir = snapshot_download(
         repo_id=repo_id,
@@ -71,7 +71,7 @@ def upload_folder_to_hf(
     Returns:
         str: URL of the uploaded repository.
     """
-    login(new_session=False)
+    login()
     api = HfApi()
 
     local_dir = Path(local_dir)

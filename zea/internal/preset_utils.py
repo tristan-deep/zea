@@ -36,7 +36,7 @@ def _hf_list_files(repo_id, repo_type="dataset", **kwargs):
     try:
         files = list_repo_files(repo_id, repo_type=repo_type, **kwargs)
     except (RepositoryNotFoundError, HFValidationError, EntryNotFoundError):
-        login(new_session=False)
+        login()
         files = list_repo_files(repo_id, repo_type=repo_type, **kwargs)
     return files
 
