@@ -37,6 +37,7 @@ autodoc_mock_imports = [
     "tensorflow",
     "torch",
     "zea.backend.tf2jax",
+    "gradio",
 ]
 
 exclude_patterns = [
@@ -56,6 +57,8 @@ exclude_patterns = [
     "_autosummary/zea.tracking.lucas_kanade.rst",
     "_autosummary/zea.models.hvae.model.rst",
     "_autosummary/zea.models.hvae.utils.rst",
+    # Gradio app — optional dependency, not part of public API docs
+    "_autosummary/zea.data.app.rst",
 ]
 
 autodoc_default_options = {

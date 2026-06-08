@@ -33,12 +33,13 @@ except ImportError:
     sitk = None
 
 
-def get_parser() -> argparse.ArgumentParser:
+def get_parser(add_help: bool = True) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
             "Beamform a zea dataset using a pipeline defined in a config YAML file. "
             "Processes frames sequentially to support temporal algorithms."
         ),
+        add_help=add_help,
     )
     parser.add_argument(
         "dataset",
@@ -172,7 +173,11 @@ def run_processing(
         raise ValueError(f"save_as must be one of {SUPPORTED_FORMATS}, got {save_as!r}")
 
     dataset_hf_kwargs = {"revision": revision} if revision is not None else {}
-    config_hf_kwargs = {"revision": config_revision if config_revision is not None else revision} if (config_revision or revision) else {}
+    config_hf_kwargs = (
+        {"revision": config_revision if config_revision is not None else revision}
+        if (config_revision or revision)
+        else {}
+    )
     config = Config.from_path(config_path, **config_hf_kwargs)
     config_params = _get_config_parameters(config)
     pipeline = Pipeline.from_path(config_path, with_batch_dim=False, **config_hf_kwargs)
@@ -233,9 +238,7 @@ def run_processing(
         elif save_as == "hdf5":
             with File(src_file_path) as src:
                 scan_dict = {
-                    k: v
-                    for k, v in src.get_scan_parameters().items()
-                    if k in _scan_spec_fields
+                    k: v for k, v in src.get_scan_parameters().items() if k in _scan_spec_fields
                 }
                 probe_dict = _build_probe_dict(src.probe)
             File.create(
@@ -262,9 +265,7 @@ def run_processing(
 
             if file_path != prev_file_path:
                 if prev_file_path is not None:
-                    video = np.stack(
-                        [ops.convert_to_numpy(f) for f in data_output], axis=0
-                    )
+                    video = np.stack([ops.convert_to_numpy(f) for f in data_output], axis=0)
                     save_path = save_dir / f"{filestem}.{save_as}"
                     if save_future is not None:
                         save_future.result()

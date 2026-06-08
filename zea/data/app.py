@@ -136,14 +136,12 @@ def _enrich_error(exc: Exception) -> str:
 
         if isinstance(exc, GatedRepoError):
             return (
-                str(exc)
-                + "\n\nThis repository is gated. Accept the terms on Hugging Face "
+                str(exc) + "\n\nThis repository is gated. Accept the terms on Hugging Face "
                 "and set the HF_TOKEN environment variable."
             )
         if isinstance(exc, RepositoryNotFoundError):
             return (
-                str(exc)
-                + "\n\nRepository not found. Check that the path is correct. "
+                str(exc) + "\n\nRepository not found. Check that the path is correct. "
                 "If the repo is private, set the HF_TOKEN environment variable."
             )
         if isinstance(exc, EntryNotFoundError):
@@ -169,10 +167,7 @@ def _html_fail(msg: str, err: Exception | str | None = None) -> str:
             .replace(">", "&gt;")
             .replace("\n", "<br>")
         )
-        html += (
-            f'<p style="margin:2px 0 2px 1.5em;font-size:0.85em;color:#ef4444">'
-            f"{escaped}</p>"
-        )
+        html += f'<p style="margin:2px 0 2px 1.5em;font-size:0.85em;color:#ef4444">{escaped}</p>'
     return html
 
 
@@ -191,7 +186,7 @@ def _html_progress(current: int, total: int) -> str:
         f'<span style="color:{_YELLOW};font-size:0.9em">Processing frame {current}/{total}</span>'
         f'<div style="background:#374151;border-radius:3px;height:5px;margin-top:3px">'
         f'<div style="background:{_PURPLE};border-radius:3px;height:5px;width:{pct}%"></div>'
-        f'</div></div>'
+        f"</div></div>"
     )
 
 
@@ -434,9 +429,7 @@ def run_checks(
         if actual_n == 1:
             result_image = display.to_8bit(processed_frames[0], dynamic_range, pillow=True)
         else:
-            frames_u8 = [
-                display.to_8bit(f, dynamic_range, pillow=False) for f in processed_frames
-            ]
+            frames_u8 = [display.to_8bit(f, dynamic_range, pillow=False) for f in processed_frames]
             video = np.stack(frames_u8, axis=0)
             try:
                 fps = int(round(parameters.frames_per_second))
@@ -450,9 +443,7 @@ def run_checks(
         return
 
     frame_label = (
-        f"frame {start_frame}"
-        if actual_n == 1
-        else f"frames {start_frame}–{end_frame - 1}"
+        f"frame {start_frame}" if actual_n == 1 else f"frames {start_frame}–{end_frame - 1}"
     )
     done_html = (
         f'<hr style="margin:6px 0;border-color:#374151">'
@@ -487,7 +478,6 @@ def build_interface() -> "gr.Blocks":
     logo = _logo_html(height=60)
 
     with gr.Blocks(title="zea visualizer") as demo:
-
         # ── Header ─────────────────────────────────────────────────────────
         gr.HTML(
             f'<div style="display:flex;align-items:center;padding:8px 0 4px;'
@@ -510,11 +500,9 @@ def build_interface() -> "gr.Blocks":
 
         # ── Main row ────────────────────────────────────────────────────────
         with gr.Row():
-
             # Left: tabbed controls ─────────────────────────────────────────
             with gr.Column(scale=1, min_width=360):
                 with gr.Tabs():
-
                     with gr.Tab("Settings"):
                         with gr.Row():
                             dataset_input = gr.Textbox(
@@ -565,9 +553,7 @@ def build_interface() -> "gr.Blocks":
                             )
                         with gr.Row():
                             run_btn = gr.Button("Run", variant="primary", scale=3)
-                            stop_btn = gr.Button(
-                                "Stop", variant="stop", scale=1, interactive=False
-                            )
+                            stop_btn = gr.Button("Stop", variant="stop", scale=1, interactive=False)
 
                     with gr.Tab("Config editor"):
                         load_config_btn = gr.Button("Load config from path", size="sm")
@@ -722,11 +708,15 @@ def build_interface() -> "gr.Blocks":
                         yield html, tmp_png.name
             except Exception as exc:
                 import traceback as _tb
+
                 yield (
-                    _html_fail("Unexpected error", exc)
-                    + f'<pre style="font-size:0.75em;color:#6b7280;white-space:pre-wrap">'
-                    f"{_tb.format_exc()}</pre>"
-                ), None
+                    (
+                        _html_fail("Unexpected error", exc)
+                        + f'<pre style="font-size:0.75em;color:#6b7280;white-space:pre-wrap">'
+                        f"{_tb.format_exc()}</pre>"
+                    ),
+                    None,
+                )
             finally:
                 if tmp_cfg is not None:
                     try:
@@ -769,9 +759,7 @@ def build_interface() -> "gr.Blocks":
 
 def get_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Launch the zea Gradio visualizer.")
-    parser.add_argument(
-        "--share", action="store_true", help="Create a public Gradio share link."
-    )
+    parser.add_argument("--share", action="store_true", help="Create a public Gradio share link.")
     parser.add_argument("--server_port", type=int, default=None, help="Port to listen on.")
     return parser
 
