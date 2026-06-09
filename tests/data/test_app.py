@@ -1,5 +1,6 @@
 """Lightweight smoke tests for zea.data.app — no HF downloads, no Gradio server."""
 
+
 def test_build_interface_does_not_crash():
     """build_interface() must construct the Gradio Blocks without raising."""
     from zea.data.app import build_interface

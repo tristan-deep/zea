@@ -375,6 +375,7 @@ def _read_file_info(file_path: str) -> dict:
                 data_prefix = f.format_key("data")
                 if data_prefix in f:
                     data_grp = f[data_prefix]
+
                     def _collect(name, obj):
                         if not hasattr(obj, "shape"):
                             return  # skip groups
@@ -382,6 +383,7 @@ def _read_file_info(file_path: str) -> dict:
                         # Accept: bare name (data/raw_data) or <map>/values
                         if len(parts) == 1 or (len(parts) == 2 and parts[1] == "values"):
                             available.append("data/" + name)
+
                     data_grp.visititems(_collect)
             except Exception:
                 pass
@@ -448,7 +450,7 @@ def _build_meta_card_html(info: dict) -> str:
     def _badge(label: str, value: str, color: str = "#9ca3af") -> str:
         return (
             f'<span style="display:inline-block;margin:1px 3px 1px 0;'
-            f'padding:1px 6px;border-radius:3px;background:rgba(255,255,255,0.06);'
+            f"padding:1px 6px;border-radius:3px;background:rgba(255,255,255,0.06);"
             f'color:{color};white-space:nowrap">'
             f'<span style="color:#6b7280;font-size:0.88em">{label}&nbsp;</span>{value}</span>'
         )
@@ -475,7 +477,7 @@ def _build_meta_card_html(info: dict) -> str:
     else:
         file_badges.append(
             '<span style="display:inline-block;margin:1px 3px 1px 0;padding:1px 6px;'
-            'border-radius:3px;background:rgba(255,255,255,0.06);'
+            "border-radius:3px;background:rgba(255,255,255,0.06);"
             'color:#6b7280;font-size:0.88em;white-space:nowrap">legacy format</span>'
         )
     n_frames_list = info.get("n_frames_per_track", [])
@@ -492,7 +494,7 @@ def _build_meta_card_html(info: dict) -> str:
     if info.get("probe_name"):
         probe_badges.append(
             f'<span style="display:inline-block;margin:1px 3px 1px 0;padding:1px 6px;'
-            f'border-radius:3px;background:rgba(255,255,255,0.06);'
+            f"border-radius:3px;background:rgba(255,255,255,0.06);"
             f'color:#e5e7eb;font-weight:600;white-space:nowrap">{info["probe_name"]}</span>'
         )
     if info.get("probe_type"):
@@ -557,9 +559,7 @@ def _build_meta_card_html(info: dict) -> str:
     return (
         f'<div style="border-left:3px solid {_PURPLE};border-radius:4px;'
         f"background:rgba(147,51,234,0.07);padding:6px 10px;margin-bottom:4px;"
-        f'font-size:0.83em">'
-        + "".join(sections)
-        + "</div>"
+        f'font-size:0.83em">' + "".join(sections) + "</div>"
     )
 
 
