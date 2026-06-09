@@ -33,6 +33,10 @@ extensions = [
     "sphinx.ext.mathjax",  # for rendering math in the documentation
 ]
 
+suppress_warnings = [
+    "ref.python",
+]
+
 autodoc_mock_imports = [
     "tensorflow",
     "torch",
