@@ -33,10 +33,6 @@ extensions = [
     "sphinx.ext.mathjax",  # for rendering math in the documentation
 ]
 
-suppress_warnings = [
-    "ref.python",
-]
-
 autodoc_mock_imports = [
     "tensorflow",
     "torch",
@@ -144,23 +140,48 @@ TOPLEVEL_API_ALIASES = {
 
 _REEXPORTED_CANONICALS = set(TOPLEVEL_API_ALIASES)
 
+# Properties on zea.Parameters that are also fields on zea.data.spec.ScanSpec.
+# Documenting both creates duplicate cross-reference targets and "more than one
+# target found" warnings in Sphinx 7+.  The canonical documentation lives on
+# ScanSpec; Parameters users are pointed there via the class docstring.
+_PARAMETERS_SCANSPEC_ALIASES = frozenset({"focus_distances", "initial_times", "t0_delays"})
+
+# VerasonicsProbe.type is a string label already documented by ProbeSpec.type.
+# Excluding it from autodoc removes the duplicate cross-reference target.
+_VERASONICS_PROBE_EXCLUDE = frozenset({"type"})
+
 
 def _skip_reexported_members(app, what, name, obj, skip, options):
-    """Hide re-exported classes in their defining submodule.
+    """Hide re-exported classes and disambiguate duplicate attribute targets.
 
-    These classes are documented under their top-level ``zea.X`` alias instead
-    (see ``TOPLEVEL_API_ALIASES``), which keeps a single documentation target
-    per object and avoids "more than one target found" warnings.
+    1. Re-exported classes are documented under their top-level ``zea.X`` alias
+       (see ``TOPLEVEL_API_ALIASES``), so the copy in the defining submodule is
+       hidden to keep a single, unambiguous cross-reference target.
+
+    2. ``zea.scan.Parameters`` properties that duplicate ``ScanSpec`` fields are
+       excluded so Sphinx does not register two targets for the same name.
+
+    3. ``VerasonicsProbe`` attributes in ``_VERASONICS_PROBE_EXCLUDE`` are skipped
+       so Sphinx does not register duplicate targets shared with ``ProbeSpec``/``Subject``.
 
     Returns ``None`` (rather than ``skip``) for everything else so the default
-    filtering still applies. autosummary fires this event with ``skip=False``
-    for every member, so echoing ``skip`` back would force private members into
-    the generated summary tables.
+    filtering still applies.
     """
     if what == "module":
         canonical = f"{getattr(obj, '__module__', '')}.{getattr(obj, '__qualname__', '')}"
         if canonical in _REEXPORTED_CANONICALS:
             return True
+
+    if what == "attribute":
+        attr_name = name.rsplit(".", 1)[-1]
+        if isinstance(obj, property):
+            # Skip Parameters properties that duplicate ScanSpec field names.
+            if attr_name in _PARAMETERS_SCANSPEC_ALIASES and "zea.scan.Parameters" in name:
+                return True
+        # Skip VerasonicsProbe attributes that duplicate ProbeSpec/Subject targets.
+        if attr_name in _VERASONICS_PROBE_EXCLUDE and "VerasonicsProbe" in name:
+            return True
+
     return None
 
 

@@ -202,6 +202,7 @@ class H5DataSource:
         return_filename: Return filename metadata with each sample.
         cache: Cache loaded samples to RAM.
         validate: Validate dataset against the zea format.
+        revision: HuggingFace revision (branch, tag, or commit hash) for ``hf://`` paths.
     """
 
     def __init__(
@@ -221,6 +222,7 @@ class H5DataSource:
         return_filename: bool = False,
         cache: bool = False,
         validate: bool = True,
+        revision: str | None = None,
         **kwargs,
     ):
         self.return_filename = return_filename
@@ -239,7 +241,7 @@ class H5DataSource:
         assert self.n_frames > 0, f"`n_frames` must be > 0, got {self.n_frames}"
 
         # Discover files and shapes (reuses Dataset machinery)
-        _dataset = Dataset(file_paths, validate=validate, **kwargs)
+        _dataset = Dataset(file_paths, validate=validate, revision=revision, **kwargs)
         self.file_paths = _dataset.file_paths
         self.file_shapes = _dataset.load_file_shapes(key)
         _dataset.close()
@@ -423,6 +425,8 @@ class Dataloader:
             Default is ``-1``.
         validate: Validate discovered files against the zea format.
             Default is ``True``.
+        revision: HuggingFace revision (branch, tag, or commit hash) for ``hf://`` paths.
+            Defaults to ``None`` (uses the default branch, typically ``"main"``).
         prefetch: Enable Grain prefetching for iteration. Default is ``True``.
         shard_index: Shard index to select when ``num_shards > 1``.
             Must satisfy ``0 <= shard_index < num_shards``.
@@ -485,6 +489,7 @@ class Dataloader:
         frame_index_stride: int = 1,
         frame_axis: int = -1,
         validate: bool = True,
+        revision: str | None = None,
         prefetch: bool = True,
         shard_index: int | None = None,
         num_shards: int = 1,
@@ -537,6 +542,7 @@ class Dataloader:
             return_filename=return_filename,
             cache=cache,
             validate=validate,
+            revision=revision,
             **kwargs,
         )
 

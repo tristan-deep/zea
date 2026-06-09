@@ -344,8 +344,8 @@ class VerasonicsFile(h5py.File):
         Read the t0 delays and apodization from the file.
 
         Returns:
-            t0_delays (np.ndarray): The t0 delays of shape (n_tx, n_el).
-            apod (np.ndarray): The apodization of shape (n_el,).
+            tuple: ``(t0_delays, apodizations)`` — t0 delays of shape ``(n_tx, n_el)``
+            and transmit apodizations of shape ``(n_tx, n_el)``.
         """
 
         t0_delays_list = []
@@ -690,7 +690,7 @@ class VerasonicsFile(h5py.File):
             wavelength (float): The wavelength of the probe.
 
         Returns:
-            initial_times (np.ndarray): The initial times of shape (n_rcv,).
+            np.ndarray: The initial times of shape ``(n_rcv,)``.
         """
         initial_times = []
         for n in rcv_order:
@@ -712,7 +712,7 @@ class VerasonicsFile(h5py.File):
             tx_order (list): The order in which the transmits appear in the events.
 
         Returns:
-            focus_distances (list): The focus distances of shape (n_tx,) in meters.
+            np.ndarray: The focus distances of shape ``(n_tx,)`` in meters.
         """
         focus_distances = []
         for n in tx_order:
