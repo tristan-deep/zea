@@ -6812,18 +6812,6 @@ httpx = "*"
 dev = ["pytest"]
 
 [[package]]
-name = "schema"
-version = "0.7.8"
-description = "Simple data validation library"
-optional = false
-python-versions = "*"
-groups = ["main"]
-files = [
-    {file = "schema-0.7.8-py2.py3-none-any.whl", hash = "sha256:00bd977fadc7d9521bf289850cd8a8aa5f4948f575476b8daaa5c1b57af2dce1"},
-    {file = "schema-0.7.8.tar.gz", hash = "sha256:e86cc08edd6fe6e2522648f4e47e3a31920a76e82cce8937535422e310862ab5"},
-]
-
-[[package]]
 name = "scikit-image"
 version = "0.25.2"
 description = "Image processing in Python"
@@ -9243,4 +9231,4 @@ tests = ["cloudpickle", "gradio", "ipykernel", "ipywidgets", "papermill", "pre-c
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.10"
-content-hash = "81afc07406258e6b286d64e9ec1eb0c6cc11fc2de92517bbd8592b66a819a812"
+content-hash = "93f556d6aa63570f60bc5db0376afa987290d0e01d43da79c9d5b6836f4e7326"

@@ -114,9 +114,9 @@ def main() -> None:
         )
 
     elif isinstance(args, AppArgs):
-        from zea.data.app import CSS, build_interface
-
         import gradio as gr
+
+        from zea.data.app import CSS, build_interface
 
         demo = build_interface()
         demo.launch(
