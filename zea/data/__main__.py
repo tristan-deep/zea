@@ -6,7 +6,7 @@ Usage:
 
 import warnings
 from dataclasses import dataclass
-from typing import Annotated, Literal
+from typing import Annotated, Literal, Optional
 
 import tyro
 
@@ -20,7 +20,9 @@ class FolderCopyArgs:
     src: Annotated[str, tyro.conf.arg(help="Source folder path.")]
     dst: Annotated[str, tyro.conf.arg(help="Destination folder path.")]
     key: Annotated[str, tyro.conf.arg(help="Key to access in the HDF5 files.")]
-    mode: Literal["a", "w", "r+", "x"] = "a"
+    # Default None lets Folder.copy auto-select the mode ('a' for a single key,
+    # 'w' when --key is 'all'/'*'); passing 'a' would break the all/* case.
+    mode: Optional[Literal["a", "w", "r+", "x"]] = None
 
 
 def get_parser():

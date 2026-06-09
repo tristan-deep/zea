@@ -43,17 +43,6 @@ def get_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", metavar="command")
     subparsers.required = True
 
-    # ── device (top-level, for argparse compat) ───────────────────────────────
-    parser.add_argument(
-        "--device",
-        type=str,
-        default="auto:1",
-        help=(
-            "Device to use for processing. Can be a specific device (e.g. 'cuda:0', 'cpu') "
-            "or 'auto:1' to automatically select the best available device."
-        ),
-    )
-
     # ── process ──────────────────────────────────────────────────────────────
     from zea.data.process import get_parser as _process_parser
 
@@ -79,6 +68,12 @@ def get_parser() -> argparse.ArgumentParser:
         type=int,
         default=None,
         help="Port for the Gradio server to listen on. Defaults to 7860.",
+    )
+    app_p.add_argument(
+        "--device",
+        type=str,
+        default="auto:1",
+        help="Compute device passed to init_device (e.g. 'cpu', 'auto:1').",
     )
 
     return parser

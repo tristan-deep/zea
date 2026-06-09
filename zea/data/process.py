@@ -5,6 +5,7 @@ Usage:
 """
 
 import argparse
+import re
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field, fields as dataclass_fields
 from pathlib import Path
@@ -180,6 +181,15 @@ def get_parser(add_help: bool = True) -> argparse.ArgumentParser:
             "Only valid when --save-as hdf5."
         ),
     )
+    parser.add_argument(
+        "--device",
+        type=str,
+        default="auto:1",
+        help=(
+            "Compute device ('cuda:0', 'cpu', 'auto:1', …). "
+            "Only relevant when running the beamformer pipeline."
+        ),
+    )
     return parser
 
 
@@ -196,8 +206,17 @@ _PIPELINE_REQUIRED_KEYS = frozenset({"data/raw_data", "data/aligned_data/values"
 
 
 def _key_requires_pipeline(key: str) -> bool:
-    """Return True if ``key`` holds raw RF/pre-beamformed data that needs a pipeline."""
-    return (key or "").strip() in _PIPELINE_REQUIRED_KEYS
+    """Return True if ``key`` holds raw RF/pre-beamformed data that needs a pipeline.
+
+    Normalizes the key the same way :meth:`File.format_key` does (strip a
+    ``tracks/track_N/`` prefix and add a leading ``data/``) so aliases like
+    ``raw_data`` are classified the same as ``data/raw_data``.
+    """
+    normalized = (key or "").strip()
+    normalized = re.sub(r"^tracks/track_\d+/", "", normalized)
+    if normalized and not normalized.startswith("data/"):
+        normalized = "data/" + normalized
+    return normalized in _PIPELINE_REQUIRED_KEYS
 
 
 def _build_probe_dict(probe) -> dict:
@@ -244,7 +263,7 @@ def _run_passthrough(
     for file_path in file_paths:
         with File(file_path) as f:
             data_key = f.format_key(key)
-            arr = np.asarray(f[data_key][:n_frames] if n_frames else f[data_key][:])
+            arr = np.asarray(f[data_key][:n_frames] if n_frames is not None else f[data_key][:])
             filestem = f.stem
 
         # Ensure (N, H, W) — squeeze any leading single-element dims
@@ -425,6 +444,11 @@ def run_processing(
                     fps = _DEFAULT_FPS
 
                 params = prepare_parameters(parameters, **config_params)
+
+            # Sentinel iteration (no more data — also covers an empty dataset
+            # where total_batches == 0); nothing to process, so stop here.
+            if file_path is None:
+                break
 
             # slice to selected transmits (transmit axis = 0 when insert_frame_axis=False)
             frame = frame[selected_transmits]

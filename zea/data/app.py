@@ -9,6 +9,7 @@ Usage:
 import argparse
 import base64
 import contextlib
+import html
 import io
 import os
 import tempfile
@@ -176,29 +177,24 @@ def _enrich_error(exc: Exception) -> str:
 
 
 def _html_pass(msg: str) -> str:
-    return f'<p style="margin:2px 0;color:#22c55e">&#10004; {msg}</p>'
+    return f'<p style="margin:2px 0;color:#22c55e">&#10004; {html.escape(msg)}</p>'
 
 
 def _html_fail(msg: str, err: Exception | str | None = None) -> str:
-    html = f'<p style="margin:2px 0;color:#ef4444">&#10008; {msg}</p>'
+    out = f'<p style="margin:2px 0;color:#ef4444">&#10008; {html.escape(msg)}</p>'
     if err is not None:
         detail = _enrich_error(err) if isinstance(err, Exception) else str(err)
-        escaped = (
-            detail.replace("&", "&amp;")
-            .replace("<", "&lt;")
-            .replace(">", "&gt;")
-            .replace("\n", "<br>")
-        )
-        html += f'<p style="margin:2px 0 2px 1.5em;font-size:0.85em;color:#ef4444">{escaped}</p>'
-    return html
+        escaped = html.escape(detail).replace("\n", "<br>")
+        out += f'<p style="margin:2px 0 2px 1.5em;font-size:0.85em;color:#ef4444">{escaped}</p>'
+    return out
 
 
 def _html_warn(msg: str) -> str:
-    return f'<p style="margin:2px 0;color:{_YELLOW}">&#9888; {msg}</p>'
+    return f'<p style="margin:2px 0;color:{_YELLOW}">&#9888; {html.escape(msg)}</p>'
 
 
 def _html_info(msg: str) -> str:
-    return f'<p style="margin:2px 0;color:{_YELLOW}">&#8250; {msg}</p>'
+    return f'<p style="margin:2px 0;color:{_YELLOW}">&#8250; {html.escape(msg)}</p>'
 
 
 def _html_progress(current: int, total: int) -> str:
@@ -774,16 +770,19 @@ def run_checks(
                     yield _replace_last(_html_pass("Pipeline built"))
                 if _stopped():
                     return
-            elif _key_requires_pipeline(key):
-                yield _emit(
-                    _html_fail(
-                        "Pipeline required",
-                        f"Key '{key}' contains raw RF data — a valid pipeline config is needed. "
-                        "Provide a config with a 'pipeline:' section or "
-                        "select a different data key.",
-                    )
-                )
-                return
+
+    # A pipeline-required key cannot fall back to raw display. Reject here so the
+    # missing-config, unreadable-config and failed-build cases are all covered,
+    # not only the failed-build case inside the config block above.
+    if pipeline is None and _key_requires_pipeline(key):
+        yield _emit(
+            _html_fail(
+                "Pipeline required",
+                f"Key '{key}' contains raw RF data — a valid pipeline config is needed. "
+                "Provide a config with a 'pipeline:' section or select a different data key.",
+            )
+        )
+        return
 
     # 4. Open file — resolve data key and total frame count
     _data_key: str | None = None
@@ -988,6 +987,10 @@ def build_interface() -> "gr.Blocks":
         config_rev_decoupled = gr.State(False)
         file_paths_state = gr.State([])
         track_labels_state = gr.State([])
+        # True only while the user's manual edits to the config editor should
+        # override the config path. Reset whenever the config is (re)loaded or a
+        # dataset/config/preset path changes, so stale editor contents are not used.
+        editor_override_active = gr.State(False)
 
         # ── Main row ────────────────────────────────────────────────────────
         with gr.Row():
@@ -1146,8 +1149,10 @@ def build_interface() -> "gr.Blocks":
                     gr.update(choices=_DATA_KEYS),
                 )
             names, paths = _list_dataset_files(path)
-            auto_val = names[0] if len(names) == 1 else None
-            file_update = gr.update(choices=names, value=auto_val, interactive=bool(names))
+            auto_val = paths[0] if len(paths) == 1 else None
+            file_update = gr.update(
+                choices=list(zip(names, paths)), value=auto_val, interactive=bool(paths)
+            )
             _reset_key = gr.update(choices=_DATA_KEYS, value=None, interactive=False)
             if not _is_hf(path):
                 return (
@@ -1226,9 +1231,10 @@ def build_interface() -> "gr.Blocks":
                 return
 
             names, fpaths = _list_dataset_files(path, rev or None)
-            file_upd = gr.update(choices=names, interactive=bool(names))
-            new_val = current_file if (current_file and current_file in names) else None
-            file_upd = gr.update(choices=names, value=new_val, interactive=bool(names))
+            new_val = current_file if (current_file and current_file in fpaths) else None
+            file_upd = gr.update(
+                choices=list(zip(names, fpaths)), value=new_val, interactive=bool(fpaths)
+            )
 
             if not new_val:
                 yield (
@@ -1259,9 +1265,8 @@ def build_interface() -> "gr.Blocks":
                 gr.update(interactive=False),
             )
 
-            file_idx = names.index(new_val)
             sf, nf, meta, trk, tlbls, run_upd, key_upd = _file_load_updates(
-                fpaths[file_idx], rev or None, key
+                new_val, rev or None, key
             )
             yield cfg_upd, gr.update(), fpaths, meta, trk, tlbls, run_upd, key_upd, sf, nf
 
@@ -1315,7 +1320,7 @@ def build_interface() -> "gr.Blocks":
                 gr.update(
                     choices=_DATA_KEYS, value=key, interactive=False
                 ),  # key_input — pre-filled from preset but locked until file is loaded
-                gr.update(choices=names, value=None, interactive=bool(names)),
+                gr.update(choices=list(zip(names, paths)), value=None, interactive=bool(paths)),
                 paths,
                 gr.update(visible=False, choices=[], value=None),  # track_selector
                 [],  # track_labels_state
@@ -1357,17 +1362,11 @@ def build_interface() -> "gr.Blocks":
         )
 
         def _on_file_select_gen(selected_name, file_paths, key, ds_revision):
-            if not selected_name or not file_paths:
+            # selected_name is the full path (dropdown value), not the basename.
+            if not selected_name or not file_paths or selected_name not in file_paths:
                 yield _NO_FILE
                 return
-
-            names = [Path(p).name for p in file_paths]
-            try:
-                idx = names.index(selected_name)
-                fpath = file_paths[idx]
-            except (ValueError, IndexError):
-                yield _NO_FILE
-                return
+            fpath = selected_name
 
             # Step 1: clear image + show loading indicator, disable run until load completes
             yield (
@@ -1411,22 +1410,31 @@ def build_interface() -> "gr.Blocks":
 
         # Track changed → update frame sliders for that track's n_frames
         def _on_track_change(track_name, track_labels, selected_file, file_paths, ds_revision):
-            if not track_name or not track_labels or not selected_file or not file_paths:
+            # selected_file is the full path (dropdown value), not the basename.
+            if (
+                not track_name
+                or not track_labels
+                or not selected_file
+                or not file_paths
+                or selected_file not in file_paths
+            ):
                 return gr.update(), gr.update()
-            names = [Path(p).name for p in file_paths]
             try:
-                file_idx = names.index(selected_file)
-                fpath = file_paths[file_idx]
                 t_idx = list(track_labels).index(track_name)
-            except (ValueError, IndexError):
+            except ValueError:
                 return gr.update(), gr.update()
             try:
-                local = _resolve_file_path(fpath, ds_revision or None)
+                local = _resolve_file_path(selected_file, ds_revision or None)
                 with File(local) as f:
                     n = f.tracks[t_idx].n_frames
                 if n > 1:
                     return gr.update(maximum=n - 1, value=0), gr.update(maximum=n, value=1)
-                return gr.update(value=0, interactive=n > 0), gr.update(value=1, interactive=n > 0)
+                # Single (or zero) frame: also reset the maxima so they don't
+                # retain a previous long track's range.
+                return (
+                    gr.update(maximum=0, value=0, interactive=n > 0),
+                    gr.update(maximum=1, value=1, interactive=n > 0),
+                )
             except Exception:
                 return gr.update(), gr.update()
 
@@ -1442,21 +1450,34 @@ def build_interface() -> "gr.Blocks":
             [start_frame_input, n_frames_input],
         )
 
-        # Config editor: mark when user types
+        # Config editor: mark when user types → editor contents now override the path
         config_editor.input(
-            lambda: gr.update(visible=True, value=_EDITOR_ACTIVE_HTML),
+            lambda: (gr.update(visible=True, value=_EDITOR_ACTIVE_HTML), True),
             [],
-            [editor_indicator],
+            [editor_indicator, editor_override_active],
         )
 
-        # Load from path → clear editor indicator
+        # Load from path → clear editor indicator and override flag
         def _load_and_clear(path, revision):
-            return _load_config_text(path, revision), gr.update(visible=False, value="")
+            return _load_config_text(path, revision), gr.update(visible=False, value=""), False
 
         load_config_btn.click(
             _load_and_clear,
             [config_input, config_rev_input],
-            [config_editor, editor_indicator],
+            [config_editor, editor_indicator, editor_override_active],
+        )
+
+        # Changing a dataset/config/preset path invalidates any manual editor
+        # override so the (new) config path is used on the next run.
+        def _clear_editor_override():
+            return gr.update(visible=False, value=""), False
+
+        for _component in (dataset_input, config_input):
+            _component.change(
+                _clear_editor_override, [], [editor_indicator, editor_override_active]
+            )
+        preset_selector.change(
+            _clear_editor_override, [], [editor_indicator, editor_override_active]
         )
 
         # Run generator
@@ -1473,6 +1494,7 @@ def build_interface() -> "gr.Blocks":
             start_f,
             n_f,
             editor_yaml,
+            editor_override,
         ):
             _stop_event.clear()
             dataset = (dataset or "").strip()
@@ -1486,21 +1508,22 @@ def build_interface() -> "gr.Blocks":
 
             config_resolved = config or ""
             tmp_cfg = None
-            if editor_yaml and editor_yaml.strip() and not editor_yaml.strip().startswith("#"):
+            if (
+                editor_override
+                and editor_yaml
+                and editor_yaml.strip()
+                and not editor_yaml.strip().startswith("#")
+            ):
                 tmp_cfg = tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False)
                 tmp_cfg.write(editor_yaml)
                 tmp_cfg.close()
                 config_resolved = tmp_cfg.name
                 cfg_rev = None
 
-            # Resolve file index from selected name
+            # Resolve file index from selected path (dropdown value is the full path)
             file_index = 0
-            if file_name and file_paths:
-                names = [Path(p).name for p in file_paths]
-                try:
-                    file_index = names.index(file_name)
-                except ValueError:
-                    file_index = 0
+            if file_name and file_paths and file_name in file_paths:
+                file_index = file_paths.index(file_name)
 
             # Resolve track index
             track_index = 0
@@ -1559,6 +1582,7 @@ def build_interface() -> "gr.Blocks":
                 start_frame_input,
                 n_frames_input,
                 config_editor,
+                editor_override_active,
             ],
             outputs=[status_output, image_output],
         )
