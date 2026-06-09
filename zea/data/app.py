@@ -1088,7 +1088,7 @@ def build_interface() -> "gr.Blocks":
                                 elem_classes=["frame-slider"],
                             )
                             n_frames_input = gr.Slider(
-                                label="# frames (>1 → GIF)",
+                                label="# frames",
                                 minimum=1,
                                 maximum=999,
                                 value=1,
