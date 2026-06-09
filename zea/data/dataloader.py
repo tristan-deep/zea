@@ -7,7 +7,7 @@ Example:
 
         loader = zea.Dataloader(
             file_paths="/path/to/dataset",
-            key="data/image",
+            key="data/image/values",
             batch_size=16,
             image_range=(-60, 0),
             normalization_range=(0, 1),
@@ -448,7 +448,7 @@ class Dataloader:
 
             loader = Dataloader(
                 file_paths="/data/camus",
-                key="data/image_sc",
+                key="data/image/values",
                 batch_size=32,
                 image_range=(-60, 0),
                 normalization_range=(0, 1),
