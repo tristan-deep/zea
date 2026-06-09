@@ -1,16 +1,18 @@
 """CLI for beamforming a zea dataset with a pipeline defined in a YAML config file.
 
 Usage:
-    python -m zea.data.process <dataset> <save_dir> --config <config.yaml>
+    python -m zea.data.process --dataset <path> --config <config.yaml>
 """
 
 import argparse
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import fields as dataclass_fields
+from dataclasses import dataclass, field, fields as dataclass_fields
 from pathlib import Path
+from typing import Annotated
 
 import keras
 import numpy as np
+import tyro
 from keras import ops
 
 from zea import display, io_lib, log
@@ -33,7 +35,52 @@ except ImportError:
     sitk = None
 
 
+@dataclass
+class ProcessArgs:
+    """Arguments for beamforming a zea dataset."""
+
+    dataset: Annotated[
+        str,
+        tyro.conf.arg(
+            aliases=["-d"],
+            help="Path/URI to the zea dataset (folder of HDF5 files or a single HDF5 file).",
+        ),
+    ]
+    config: Annotated[
+        str,
+        tyro.conf.arg(
+            aliases=["-c"],
+            help="Path to config.yaml for the beamforming pipeline.",
+        ),
+    ]
+    save_dir: Path = Path("output")
+    key: str = "data/raw_data"
+    n_frames: int | None = None
+    save_as: str = "gif"
+    keep_keys: list[str] = field(default_factory=lambda: ["maxval"])
+    timings: bool = False
+    num_threads: int = 16
+    revision: str | None = None
+    config_revision: str | None = None
+    overwrite: bool = False
+    keep_dynamic_range: bool = False
+    device: Annotated[
+        str,
+        tyro.conf.arg(
+            help=(
+                "Compute device ('cuda:0', 'cpu', 'auto:1', …). "
+                "Only relevant when running the beamformer pipeline."
+            ),
+        ),
+    ] = "auto:1"
+
+
 def get_parser(add_help: bool = True) -> argparse.ArgumentParser:
+    """Return an argparse parser equivalent to :class:`ProcessArgs`.
+
+    Kept as a plain argparse parser for compatibility with
+    ``sphinxcontrib-autoprogram`` and use as an argparse ``parents`` entry.
+    """
     parser = argparse.ArgumentParser(
         description=(
             "Beamform a zea dataset using a pipeline defined in a config YAML file. "
@@ -42,43 +89,50 @@ def get_parser(add_help: bool = True) -> argparse.ArgumentParser:
         add_help=add_help,
     )
     parser.add_argument(
-        "dataset",
+        "--dataset",
+        "-d",
+        required=True,
         type=str,
         help="Path/URI to the zea dataset (folder of HDF5 files or a single HDF5 file).",
     )
     parser.add_argument(
-        "save_dir",
-        type=Path,
-        help="Directory where output files are written.",
+        "--config",
+        "-c",
+        required=True,
+        type=str,
+        help="Path to config.yaml for the beamforming pipeline.",
     )
     parser.add_argument(
-        "--config",
-        type=str,
-        default=None,
-        help="Path to config.yaml. Defaults to <dataset>/config.yaml.",
+        "--save-dir",
+        type=Path,
+        default=Path("output"),
+        help="Directory where output files are written. Default: output/",
     )
     parser.add_argument(
         "--key",
         type=str,
         default="data/raw_data",
-        help="Data type to load from each file (e.g. data/raw_data, data/aligned_data).",
+        help="Data key to load from each file (e.g. data/raw_data, data/image/values).",
     )
     parser.add_argument(
-        "--n_frames",
+        "--n-frames",
         type=int,
         default=None,
+        dest="n_frames",
         help="Maximum number of frames to process per file (all frames when omitted).",
     )
     parser.add_argument(
-        "--save_as",
+        "--save-as",
         type=str,
         default="gif",
+        dest="save_as",
         help=f"Output format. One of: {', '.join(SUPPORTED_FORMATS)}.",
     )
     parser.add_argument(
-        "--keep_keys",
+        "--keep-keys",
         nargs="+",
         default=["maxval"],
+        dest="keep_keys",
         help="Pipeline output keys to forward to the next frame iteration.",
     )
     parser.add_argument(
@@ -87,9 +141,10 @@ def get_parser(add_help: bool = True) -> argparse.ArgumentParser:
         help="Record dataloader and pipeline timings and save to YAML files in save_dir.",
     )
     parser.add_argument(
-        "--num_threads",
+        "--num-threads",
         type=int,
         default=16,
+        dest="num_threads",
         help="Number of threads used by the dataloader. Default is 16.",
     )
     parser.add_argument(
@@ -102,9 +157,10 @@ def get_parser(add_help: bool = True) -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
-        "--config_revision",
+        "--config-revision",
         type=str,
         default=None,
+        dest="config_revision",
         help=(
             "HuggingFace revision for the config (branch, tag, or commit hash). "
             "Defaults to --revision if omitted."
@@ -116,11 +172,12 @@ def get_parser(add_help: bool = True) -> argparse.ArgumentParser:
         help="Overwrite existing output files. Default is False.",
     )
     parser.add_argument(
-        "--keep_dynamic_range",
+        "--keep-dynamic-range",
         action="store_true",
+        dest="keep_dynamic_range",
         help=(
             "Store pipeline output as-is (float32 dB) instead of converting to uint8. "
-            "Only valid when --save_as hdf5."
+            "Only valid when --save-as hdf5."
         ),
     )
     return parser
@@ -150,7 +207,7 @@ def _build_probe_dict(probe) -> dict:
         probe_dict["name"] = probe.name
     if getattr(probe, "probe_geometry", None) is not None:
         probe_dict["probe_geometry"] = probe.probe_geometry
-    for field in (
+    for attr in (
         "type",
         "probe_center_frequency",
         "probe_bandwidth_percent",
@@ -159,9 +216,9 @@ def _build_probe_dict(probe) -> dict:
         "lens_sound_speed",
         "lens_thickness",
     ):
-        val = getattr(probe, field, None)
+        val = getattr(probe, attr, None)
         if val is not None:
-            probe_dict[field] = val
+            probe_dict[attr] = val
     return probe_dict
 
 
@@ -396,12 +453,11 @@ def run_processing(
 
 
 def main() -> None:
-    args = get_parser().parse_args()
-    init_device()
-    config_path = args.config or f"{args.dataset}/config.yaml"
+    args = tyro.cli(ProcessArgs)
+    init_device(args.device)
     run_processing(
         args.dataset,
-        config_path,
+        args.config,
         args.key,
         args.n_frames,
         args.save_dir,

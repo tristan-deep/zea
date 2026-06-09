@@ -39,37 +39,57 @@ def test_process_help_exits_zero(capsys):
     assert "dataset" in capsys.readouterr().out
 
 
-def test_process_parses_positional_args():
-    args = _parser().parse_args(["process", "hf://zeahub/data", "/tmp/out"])
+def test_process_parses_required_flags():
+    args = _parser().parse_args(
+        ["process", "--dataset", "hf://zeahub/data", "--config", "cfg.yaml"]
+    )
     assert args.command == "process"
     assert args.dataset == "hf://zeahub/data"
-    assert str(args.save_dir) == "/tmp/out"
+    assert args.config == "cfg.yaml"
+    assert str(args.save_dir) == "output"  # default
+
+
+def test_process_short_flags():
+    args = _parser().parse_args(
+        [
+            "process",
+            "-d",
+            "hf://zeahub/data",
+            "-c",
+            "cfg.yaml",
+        ]
+    )
+    assert args.dataset == "hf://zeahub/data"
+    assert args.config == "cfg.yaml"
 
 
 def test_process_optional_args():
     args = _parser().parse_args(
         [
             "process",
+            "--dataset",
             "hf://zeahub/data",
-            "/tmp/out",
             "--config",
             "config.yaml",
+            "--save-dir",
+            "/tmp/out",
             "--revision",
             "v0.1.0",
-            "--config_revision",
+            "--config-revision",
             "v0.2.0",
-            "--save_as",
+            "--save-as",
             "mp4",
         ]
     )
     assert args.config == "config.yaml"
+    assert str(args.save_dir) == "/tmp/out"
     assert args.revision == "v0.1.0"
     assert args.config_revision == "v0.2.0"
     assert args.save_as == "mp4"
 
 
 def test_process_defaults():
-    args = _parser().parse_args(["process", "data/", "/tmp/out"])
+    args = _parser().parse_args(["process", "--dataset", "data/", "--config", "cfg.yaml"])
     assert args.key == "data/raw_data"
     assert args.n_frames is None
     assert args.save_as == "gif"
@@ -77,6 +97,7 @@ def test_process_defaults():
     assert args.keep_dynamic_range is False
     assert args.revision is None
     assert args.config_revision is None
+    assert str(args.save_dir) == "output"
 
 
 # ── app subcommand ────────────────────────────────────────────────────────────

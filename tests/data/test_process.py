@@ -58,7 +58,7 @@ def test_get_parser_defaults():
     from zea.data.process import get_parser
 
     p = get_parser()
-    args = p.parse_args(["data/", "/tmp/out"])
+    args = p.parse_args(["--dataset", "data/", "--config", "cfg.yaml"])
     assert args.key == "data/raw_data"
     assert args.n_frames is None
     assert args.save_as == "gif"
@@ -67,6 +67,7 @@ def test_get_parser_defaults():
     assert args.revision is None
     assert args.config_revision is None
     assert args.num_threads == 16
+    assert str(args.save_dir) == "output"
 
 
 # ── _run_passthrough ──────────────────────────────────────────────────────────
@@ -234,20 +235,19 @@ def test_main_dispatches_to_run_processing(tmp_path, monkeypatch):
     ds_dir = tmp_path / "ds"
     _make_image_file(ds_dir / "scan.hdf5")
     cfg = _minimal_config(tmp_path / "cfg.yaml")
-    out_dir = tmp_path / "out"
 
     monkeypatch.setattr(
         "sys.argv",
         [
             "zea",
             "process",
+            "--dataset",
             str(ds_dir),
-            str(out_dir),
             "--config",
             str(cfg),
             "--key",
             "data/image/values",
-            "--save_as",
+            "--save-as",
             "gif",
         ],
     )
@@ -259,7 +259,6 @@ def test_main_dispatches_to_run_processing(tmp_path, monkeypatch):
         called["config"] = config
         called["key"] = key
 
-    # run_processing / init_device are imported inside main() so patch at source
     with patch("zea.data.process.run_processing", _fake_run):
         with patch("zea.internal.device.init_device"):
             from zea.__main__ import main
@@ -268,24 +267,4 @@ def test_main_dispatches_to_run_processing(tmp_path, monkeypatch):
 
     assert called["key"] == "data/image/values"
     assert called["dataset"] == str(ds_dir)
-
-
-def test_main_process_uses_default_config(tmp_path, monkeypatch):
-    """When --config is omitted, config path defaults to <dataset>/config.yaml."""
-    ds_dir = tmp_path / "ds"
-    ds_dir.mkdir()
-
-    monkeypatch.setattr("sys.argv", ["zea", "process", str(ds_dir), str(tmp_path / "out")])
-
-    captured = {}
-
-    def _fake_run(dataset, config, *args, **kwargs):
-        captured["config"] = config
-
-    with patch("zea.data.process.run_processing", _fake_run):
-        with patch("zea.internal.device.init_device"):
-            from zea.__main__ import main
-
-            main()
-
-    assert captured["config"] == f"{ds_dir}/config.yaml"
+    assert called["config"] == str(cfg)

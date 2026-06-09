@@ -2,18 +2,39 @@
 
 Usage::
 
-    zea process <dataset> <save_dir> [options]   # batch beamform a dataset
-    zea app [--share] [--server_port PORT]       # launch the Gradio visualizer
-    zea --device DEVICE process ...              # specify device for processing, e.g.
-                                                 # 'cuda:0', 'cpu', or 'auto:1' (default)
+    zea process --dataset <path> --config <config.yaml> [options]  # batch beamform a dataset
+    zea app [--share] [--server-port PORT]                         # launch the Gradio visualizer
 
 """
 
 import argparse
+import warnings
+from dataclasses import dataclass
+from typing import Annotated, Union
+
+import tyro
+
+from zea.data.process import ProcessArgs
+
+
+@dataclass
+class AppArgs:
+    """Arguments for the interactive Gradio dataset visualizer."""
+
+    share: bool = False
+    server_port: int | None = None
+    device: Annotated[
+        str,
+        tyro.conf.arg(help="Compute device passed to init_device (e.g. 'cpu', 'auto:1')."),
+    ] = "auto:1"
 
 
 def get_parser() -> argparse.ArgumentParser:
-    """Return the top-level argument parser with ``process`` and ``app`` subcommands."""
+    """Return the top-level argument parser with ``process`` and ``app`` subcommands.
+
+    Kept as plain argparse for ``sphinxcontrib-autoprogram`` doc generation and tests.
+    The interactive ``main()`` uses :func:`tyro.cli` for richer help output.
+    """
     parser = argparse.ArgumentParser(
         prog="zea",
         description="zea ultrasound toolbox.",
@@ -22,7 +43,7 @@ def get_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", metavar="command")
     subparsers.required = True
 
-    # ── device  ──────────────────────────────────────────────────────────────
+    # ── device (top-level, for argparse compat) ───────────────────────────────
     parser.add_argument(
         "--device",
         type=str,
@@ -40,6 +61,7 @@ def get_parser() -> argparse.ArgumentParser:
         "process",
         help="Beamform a zea dataset using a pipeline YAML config.",
         parents=[_process_parser(add_help=False)],
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
 
     # ── app ──────────────────────────────────────────────────────────────────
@@ -63,20 +85,26 @@ def get_parser() -> argparse.ArgumentParser:
 
 
 def main() -> None:
-    """Dispatch to the requested subcommand."""
-    args = get_parser().parse_args()
+    """Dispatch to the requested subcommand using tyro for rich help output."""
+    SubCmd = Union[
+        Annotated[ProcessArgs, tyro.conf.subcommand("process")],
+        Annotated[AppArgs, tyro.conf.subcommand("app")],
+    ]
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", DeprecationWarning)
+        args = tyro.cli(SubCmd)
 
     from zea.internal.device import init_device
 
     init_device(args.device)
 
-    if args.command == "process":
+    if isinstance(args, ProcessArgs):
         from zea.data.process import run_processing
 
-        config_path = args.config or f"{args.dataset}/config.yaml"
         run_processing(
             args.dataset,
-            config_path,
+            args.config,
             args.key,
             args.n_frames,
             args.save_dir,
@@ -90,7 +118,7 @@ def main() -> None:
             args.config_revision,
         )
 
-    elif args.command == "app":
+    elif isinstance(args, AppArgs):
         from zea.data.app import CSS, build_interface
 
         import gradio as gr
