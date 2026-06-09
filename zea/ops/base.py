@@ -40,7 +40,7 @@ def get_ops(ops_name: str):
         ops_name (str): Registry name or dotted module path of the operation.
 
     Returns:
-        type: The :class:`Operation` subclass registered under ``ops_name``.
+        Type[Operation]: The :class:`Operation` subclass registered under ``ops_name``.
 
     Raises:
         ValueError: If ``ops_name`` is a dotted module path but the class

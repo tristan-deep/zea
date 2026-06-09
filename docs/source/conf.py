@@ -158,16 +158,17 @@ def _skip_reexported_members(app, what, name, obj, skip, options):
        (see ``TOPLEVEL_API_ALIASES``), so the copy in the defining submodule is
        hidden to keep a single, unambiguous cross-reference target.
 
-    2. ``zea.Parameters`` computed properties that duplicate ``ScanSpec`` fields are
-       excluded so Sphinx does not register two targets for the same name.
-       These use ``@cache_with_dependencies`` (not ``@property``), so we match by
-       name rather than by type. The class appears as either ``zea.Parameters`` or
-       ``zea.scan.Parameters`` depending on which page Sphinx is generating.
+    2. ``zea.Parameters`` properties that duplicate ``ScanSpec`` fields are excluded
+       so Sphinx does not register two targets for the same name.  These use
+       ``@cache_with_dependencies`` which wraps the function in ``property()``, so
+       ``obj`` is a ``property`` whose ``fget.__qualname__`` starts with
+       ``"Parameters."``.  We use ``fget.__qualname__`` instead of ``name`` because
+       Sphinx 9.x passes only the bare member name (e.g. ``"focus_distances"``),
+       not the full dotted path that Sphinx 8.x used.
 
-    3. ``VerasonicsProbe`` attributes in ``_VERASONICS_PROBE_EXCLUDE`` are skipped
-       so Sphinx does not register duplicate targets shared with ``ProbeSpec``/``Subject``.
-       Checked outside the ``what == "attribute"`` guard because Sphinx may classify
-       ``@property`` members as ``"method"`` across different versions.
+    3. ``VerasonicsProbe`` properties in ``_VERASONICS_PROBE_EXCLUDE`` are skipped
+       so Sphinx does not register duplicate targets shared with ``ProbeSpec``/
+       ``Subject``.  Same approach: check ``obj.fget.__qualname__``.
 
     Returns ``None`` (rather than ``skip``) for everything else so the default
     filtering still applies.
@@ -177,19 +178,32 @@ def _skip_reexported_members(app, what, name, obj, skip, options):
         if canonical in _REEXPORTED_CANONICALS:
             return True
 
+    # Resolve the bare attribute name from whatever form ``name`` takes.
+    # Sphinx 8.x: full dotted path  (``zea.scan.Parameters.focus_distances``)
+    # Sphinx 9.x: bare member name  (``focus_distances``)
     attr_name = name.rsplit(".", 1)[-1]
 
-    # Skip Parameters computed properties that duplicate ScanSpec field names.
-    # Match by name: parent ends with ".Parameters" to cover both zea.Parameters
-    # and zea.scan.Parameters without being version-dependent on obj type or what.
+    # For property objects, fget.__qualname__ encodes the owning class name and
+    # works in both Sphinx versions without depending on how ``name`` is formatted.
+    fget_qualname = getattr(getattr(obj, "fget", None), "__qualname__", "")
+
+    # Skip Parameters properties that duplicate ScanSpec field names.
     if attr_name in _PARAMETERS_SCANSPEC_ALIASES:
-        parent = name.rsplit(".", 1)[0]
-        if parent.endswith(".Parameters"):
+        # Sphinx 9.x: use fget.__qualname__ (e.g. "Parameters.focus_distances")
+        if fget_qualname.startswith("Parameters."):
+            return True
+        # Sphinx 8.x fallback: name contains the full class path
+        if name.rsplit(".", 1)[0].endswith(".Parameters"):
             return True
 
-    # Skip VerasonicsProbe attributes that duplicate ProbeSpec/Subject targets.
-    if attr_name in _VERASONICS_PROBE_EXCLUDE and "VerasonicsProbe" in name:
-        return True
+    # Skip VerasonicsProbe properties that duplicate ProbeSpec/Subject targets.
+    if attr_name in _VERASONICS_PROBE_EXCLUDE:
+        # Sphinx 9.x: use fget.__qualname__ (e.g. "VerasonicsProbe.type")
+        if "VerasonicsProbe" in fget_qualname:
+            return True
+        # Sphinx 8.x fallback: name contains the full class path
+        if "VerasonicsProbe" in name:
+            return True
 
     return None
 

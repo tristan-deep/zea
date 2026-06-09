@@ -64,7 +64,8 @@ def get_parser() -> argparse.ArgumentParser:
         help="Create a public Gradio share link.",
     )
     app_p.add_argument(
-        "--server_port",
+        "--server-port",
+        dest="server_port",
         type=int,
         default=None,
         help="Port for the Gradio server to listen on. Defaults to 7860.",

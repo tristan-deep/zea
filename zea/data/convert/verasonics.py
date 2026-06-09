@@ -109,6 +109,10 @@ def _validate_convert_config(data):
                 raise ValueError(f"'first_frame' must be a non-negative int, got {ff!r}")
         if "frames" in entry:
             fr = entry["frames"]
+            if isinstance(fr, str) and _FRAMES_RANGE_RE.fullmatch(fr) and "-" in fr:
+                start, end = map(int, fr.split("-"))
+                if start > end:
+                    raise ValueError(f"'frames' range must be ascending (start <= end), got {fr!r}")
             if not (
                 fr == "all"
                 or (isinstance(fr, str) and _FRAMES_RANGE_RE.fullmatch(fr))

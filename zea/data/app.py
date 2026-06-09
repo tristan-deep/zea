@@ -3,7 +3,7 @@
 Usage:
     python -m zea.data.app
     python -m zea.data.app --share
-    python -m zea.data.app --server_port 7861
+    python -m zea.data.app --server-port 7861
 """
 
 import argparse
@@ -272,6 +272,7 @@ def _resolve_file_path(path: str, revision: str | None = None) -> str:
         return path
     try:
         from huggingface_hub import hf_hub_download
+
         from zea.internal.preset_utils import _hf_parse_path
 
         repo_id, subpath = _hf_parse_path(path)
@@ -593,11 +594,12 @@ def _file_load_updates(fpath: str, revision: str | None, key: str) -> tuple:
         sf_upd = gr.update(value=0, interactive=False)
         nf_upd = gr.update(value=1, interactive=False)
 
-    track_upd = (
-        gr.update(choices=track_labels, value=track_labels[0], visible=True)
-        if n_tracks > 1 and track_labels
-        else gr.update(visible=False)
-    )
+    if n_tracks > 1 and track_labels:
+        track_upd = gr.update(
+            choices=track_labels, value=track_labels[0], visible=True, interactive=True
+        )
+    else:
+        track_upd = gr.update(choices=["track 0"], value="track 0", visible=True, interactive=False)
 
     return (
         sf_upd,
@@ -1062,14 +1064,14 @@ def build_interface() -> "gr.Blocks":
                             interactive=False,
                         )
 
-                        # Track selector — hidden for single-track files
+                        # Track selector — disabled for single-track, interactive for multi-track
                         track_selector = gr.Dropdown(
                             label="Track",
                             choices=[],
                             value=None,
-                            interactive=True,
+                            interactive=False,
                             visible=False,
-                            info="Multi-track file — select a track.",
+                            info="Select a track (disabled for single-track files).",
                         )
 
                         with gr.Row():
@@ -1521,9 +1523,9 @@ def build_interface() -> "gr.Blocks":
                 cfg_rev = None
 
             # Resolve file index from selected path (dropdown value is the full path)
-            file_index = 0
-            if file_name and file_paths and file_name in file_paths:
-                file_index = file_paths.index(file_name)
+            if not file_paths or file_name not in file_paths:
+                raise gr.Warning("Selected file is no longer available. Please reselect a file.")
+            file_index = file_paths.index(file_name)
 
             # Resolve track index
             track_index = 0
@@ -1605,7 +1607,9 @@ def build_interface() -> "gr.Blocks":
 def get_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Launch the zea Gradio visualizer.")
     parser.add_argument("--share", action="store_true", help="Create a public Gradio share link.")
-    parser.add_argument("--server_port", type=int, default=None, help="Port to listen on.")
+    parser.add_argument(
+        "--server-port", dest="server_port", type=int, default=None, help="Port to listen on."
+    )
     return parser
 
 
