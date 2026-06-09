@@ -113,6 +113,12 @@ CSS = """
 footer { display: none !important; }
 .status-box { max-height: 320px; overflow-y: auto; scroll-behavior: smooth; }
 .revision-dropdown .wrap select { padding-right: 2.2em !important; }
+.run-btn { background: #f5c518 !important; border-color: #f5c518 !important;
+  color: #111 !important; }
+.run-btn:hover { background: #e6b800 !important; border-color: #e6b800 !important; }
+.run-btn:disabled { background: #5a4a00 !important; border-color: #5a4a00 !important;
+  color: #888 !important; opacity: 0.5 !important; }
+.frame-slider input[type=number], .frame-slider button { display: none !important; }
 """
 
 _SCROLL_JS = """
@@ -363,14 +369,30 @@ def _read_file_info(file_path: str) -> dict:
             except Exception:
                 pass
 
-            # Available data keys (check each key exists in the file)
+            # Discover data keys: only data/<flat> (no slash) and data/<map>/values
             available = []
-            for k in _DATA_KEYS:
-                try:
-                    if f.format_key(k) in f:
-                        available.append(k)
-                except Exception:
-                    pass
+            try:
+                data_prefix = f.format_key("data")
+                if data_prefix in f:
+                    data_grp = f[data_prefix]
+                    def _collect(name, obj):
+                        if not hasattr(obj, "shape"):
+                            return  # skip groups
+                        parts = name.split("/")
+                        # Accept: bare name (data/raw_data) or <map>/values
+                        if len(parts) == 1 or (len(parts) == 2 and parts[1] == "values"):
+                            available.append("data/" + name)
+                    data_grp.visititems(_collect)
+            except Exception:
+                pass
+            # Fall back to checking known keys if discovery failed
+            if not available:
+                for k in _DATA_KEYS:
+                    try:
+                        if f.format_key(k) in f:
+                            available.append(k)
+                    except Exception:
+                        pass
             if available:
                 info["available_keys"] = available
 
@@ -419,96 +441,126 @@ _SEP = '&nbsp;<span style="color:#4b5563">·</span>&nbsp;'
 
 
 def _build_meta_card_html(info: dict) -> str:
-    """Build an HTML info card from a _read_file_info dict."""
+    """Build a sectioned HTML info card from a _read_file_info dict."""
     if not info:
         return ""
 
-    def _row(parts: list[str], style: str = "") -> str:
-        if not parts:
+    def _badge(label: str, value: str, color: str = "#9ca3af") -> str:
+        return (
+            f'<span style="display:inline-block;margin:1px 3px 1px 0;'
+            f'padding:1px 6px;border-radius:3px;background:rgba(255,255,255,0.06);'
+            f'color:{color};white-space:nowrap">'
+            f'<span style="color:#6b7280;font-size:0.88em">{label}&nbsp;</span>{value}</span>'
+        )
+
+    def _section(title: str, badges: list[str]) -> str:
+        if not badges:
             return ""
-        content = _SEP.join(parts)
-        return f'<div style="{style}">{content}</div>'
+        joined = "".join(badges)
+        return (
+            f'<div style="margin-top:5px">'
+            f'<div style="color:#6b7280;font-size:0.78em;text-transform:uppercase;'
+            f'letter-spacing:0.05em;margin-bottom:2px">{title}</div>'
+            f'<div style="display:flex;flex-wrap:wrap;gap:2px">{joined}</div>'
+            f"</div>"
+        )
 
-    # Row 1 — probe · type · machine  (most prominent)
-    r1 = []
-    if info.get("probe_name"):
-        r1.append(f"<b>{info['probe_name']}</b>")
-    if info.get("probe_type"):
-        r1.append(info["probe_type"])
-    if info.get("us_machine"):
-        r1.append(info["us_machine"])
+    sections = []
 
-    # Row 2 — credit + description
-    r2 = []
-    if info.get("credit"):
-        r2.append(f"credit:&nbsp;{info['credit']}")
-    if info.get("description"):
-        d = info["description"]
-        r2.append(d[:90] + "…" if len(d) > 90 else d)
-
-    # Row 3 — subject + annotations
-    r3 = []
-    if info.get("subject_type"):
-        r3.append(info["subject_type"])
-    if info.get("subject_id"):
-        r3.append(f"id:{info['subject_id']}")
-    if info.get("annot_anatomy"):
-        r3.append(info["annot_anatomy"])
-    if info.get("annot_view"):
-        r3.append(info["annot_view"])
-
-    # Row 4 — version · frames
-    r4 = []
+    # ── File / version ──────────────────────────────────────────────────────
+    file_badges = []
     zv = info.get("zea_version")
     if zv:
-        r4.append(f'<span style="color:{_YELLOW}">zea&nbsp;{zv}</span>')
+        file_badges.append(_badge("zea", zv, _YELLOW))
     else:
-        r4.append('<span style="color:#6b7280">legacy</span>')
+        file_badges.append(
+            '<span style="display:inline-block;margin:1px 3px 1px 0;padding:1px 6px;'
+            'border-radius:3px;background:rgba(255,255,255,0.06);'
+            'color:#6b7280;font-size:0.88em;white-space:nowrap">legacy format</span>'
+        )
     n_frames_list = info.get("n_frames_per_track", [])
     n_tracks = info.get("n_tracks", 1)
     if n_frames_list:
         total = sum(n_frames_list)
-        r4.append(
-            f"{total}&nbsp;frames" + (f"&nbsp;({n_tracks}&nbsp;tracks)" if n_tracks > 1 else "")
-        )
+        file_badges.append(_badge("frames", str(total)))
+        if n_tracks > 1:
+            file_badges.append(_badge("tracks", str(n_tracks)))
+    sections.append(_section("File", file_badges))
 
-    # Row 5 — scan params  (small monospace)
-    r5 = []
-    if info.get("fs_hz"):
-        r5.append(f"fs&nbsp;{info['fs_hz'] / 1e6:.1f}&nbsp;MHz")
-    tx_fc = info.get("fc_hz")
-    p_fc = info.get("probe_fc_hz")
-    if tx_fc:
-        r5.append(f"fc&nbsp;{tx_fc / 1e6:.1f}&nbsp;MHz")
-    if p_fc and (not tx_fc or abs(p_fc - tx_fc) > 0.5e6):
-        r5.append(f"probe&nbsp;fc&nbsp;{p_fc / 1e6:.1f}&nbsp;MHz")
-    if info.get("probe_bw_pct"):
-        r5.append(f"BW&nbsp;{info['probe_bw_pct']:.0f}%")
-    if info.get("sound_speed"):
-        r5.append(f"c={info['sound_speed']:.0f}&nbsp;m/s")
+    # ── Probe ───────────────────────────────────────────────────────────────
+    probe_badges = []
+    if info.get("probe_name"):
+        probe_badges.append(
+            f'<span style="display:inline-block;margin:1px 3px 1px 0;padding:1px 6px;'
+            f'border-radius:3px;background:rgba(255,255,255,0.06);'
+            f'color:#e5e7eb;font-weight:600;white-space:nowrap">{info["probe_name"]}</span>'
+        )
+    if info.get("probe_type"):
+        probe_badges.append(_badge("type", info["probe_type"], "#d1d5db"))
     n_el = info.get("n_el_probe") or info.get("n_el")
     if n_el:
-        r5.append(f"{n_el}&nbsp;el")
-    if info.get("n_tx"):
-        r5.append(f"{info['n_tx']}&nbsp;tx")
-    if info.get("n_ax"):
-        r5.append(f"{info['n_ax']}&nbsp;ax")
+        probe_badges.append(_badge("el", str(n_el)))
+    p_fc = info.get("probe_fc_hz")
+    if p_fc:
+        probe_badges.append(_badge("fc", f"{p_fc / 1e6:.1f}&nbsp;MHz"))
+    if info.get("probe_bw_pct"):
+        probe_badges.append(_badge("BW", f"{info['probe_bw_pct']:.0f}%"))
+    if probe_badges:
+        sections.append(_section("Probe", probe_badges))
 
-    if not any([r1, r2, r3, r4, r5]):
+    # ── Scan ────────────────────────────────────────────────────────────────
+    scan_badges = []
+    if info.get("us_machine"):
+        scan_badges.append(_badge("system", info["us_machine"], "#d1d5db"))
+    if info.get("fs_hz"):
+        scan_badges.append(_badge("fs", f"{info['fs_hz'] / 1e6:.1f}&nbsp;MHz"))
+    tx_fc = info.get("fc_hz")
+    if tx_fc and (not p_fc or abs(p_fc - tx_fc) > 0.5e6):
+        scan_badges.append(_badge("tx&nbsp;fc", f"{tx_fc / 1e6:.1f}&nbsp;MHz"))
+    if info.get("sound_speed"):
+        scan_badges.append(_badge("c", f"{info['sound_speed']:.0f}&nbsp;m/s"))
+    if info.get("n_tx"):
+        scan_badges.append(_badge("tx", str(info["n_tx"])))
+    if info.get("n_ax"):
+        scan_badges.append(_badge("ax", str(info["n_ax"])))
+    if scan_badges:
+        sections.append(_section("Scan", scan_badges))
+
+    # ── Metadata ────────────────────────────────────────────────────────────
+    meta_badges = []
+    if info.get("subject_type"):
+        meta_badges.append(_badge("subject", info["subject_type"], "#d1d5db"))
+    if info.get("subject_id"):
+        meta_badges.append(_badge("id", info["subject_id"]))
+    if info.get("annot_anatomy"):
+        meta_badges.append(_badge("anatomy", info["annot_anatomy"], "#d1d5db"))
+    if info.get("annot_view"):
+        meta_badges.append(_badge("view", info["annot_view"]))
+    if info.get("credit"):
+        meta_badges.append(
+            '<div style="width:100%;margin:2px 0;color:#9ca3af;font-size:0.88em;'
+            'word-break:break-word;line-height:1.5">'
+            f'<span style="color:#6b7280">credit&nbsp;</span>{info["credit"]}</div>'
+        )
+    if info.get("description"):
+        meta_badges.append(
+            '<div style="width:100%;margin:2px 0;color:#9ca3af;font-size:0.88em;'
+            'word-break:break-word;line-height:1.5">'
+            f'<span style="color:#6b7280">desc&nbsp;</span>{info["description"]}</div>'
+        )
+    if meta_badges:
+        sections.append(_section("Metadata", meta_badges))
+
+    if not sections:
         return ""
 
-    html = (
+    return (
         f'<div style="border-left:3px solid {_PURPLE};border-radius:4px;'
         f"background:rgba(147,51,234,0.07);padding:6px 10px;margin-bottom:4px;"
-        f'font-size:0.83em;line-height:1.7">'
-        + _row(r1, "color:#e5e7eb")
-        + _row(r2, "color:#d1d5db")
-        + _row(r3, "color:#d1d5db;font-size:0.92em")
-        + _row(r4, "font-size:0.92em")
-        + _row(r5, "color:#9ca3af;font-size:0.85em;font-family:monospace")
+        f'font-size:0.83em">'
+        + "".join(sections)
         + "</div>"
     )
-    return html
 
 
 def _file_load_updates(fpath: str, revision: str | None, key: str) -> tuple:
@@ -565,7 +617,7 @@ def _file_load_updates(fpath: str, revision: str | None, key: str) -> tuple:
 _LOADING_META_HTML = (
     '<div style="border-left:3px solid #4b5563;border-radius:4px;'
     'padding:5px 10px;margin-bottom:4px;font-size:0.83em;color:#9ca3af">'
-    "&#8987;&nbsp;Loading file info…</div>"
+    "&#8987;&nbsp;Downloading file…</div>"
 )
 
 # ── Config loader ─────────────────────────────────────────────────────────────
@@ -712,7 +764,14 @@ def run_checks(
                     )
                 )
             if pipeline is not None:
-                yield _replace_last(_html_pass("Pipeline built"))
+                if not _key_requires_pipeline(key):
+                    # Key doesn't need beamforming — skip pipeline, use raw display
+                    pipeline = None
+                    yield _replace_last(
+                        _html_warn("Pipeline ignored — key does not need beamforming.")
+                    )
+                else:
+                    yield _replace_last(_html_pass("Pipeline built"))
                 if _stopped():
                     return
             elif _key_requires_pipeline(key):
@@ -800,9 +859,17 @@ def run_checks(
                     if k in output:
                         params[k] = output[k]
             else:
-                # Raw fallback: squeeze to 2D
+                # Raw fallback: reduce to 2D
                 while frame.ndim > 2:
-                    frame = frame[0]
+                    if frame.shape[0] == 1:
+                        frame = frame[0]
+                    elif frame.shape[-1] == 1:
+                        frame = frame[..., 0]
+                    elif frame.ndim == 3:
+                        # Multi-channel last dim (e.g. segmentation one-hot): argmax → class map
+                        frame = np.argmax(frame, axis=-1)
+                    else:
+                        frame = frame[0]
                 if frame.ndim < 2:
                     yield _emit(
                         _html_fail(
@@ -836,7 +903,8 @@ def run_checks(
         else:
             # Normalise each frame independently (min-max → uint8)
             def to_u8(arr):
-                lo, hi = arr.min(), arr.max()
+                arr = np.asarray(arr, dtype=np.float32)
+                lo, hi = float(arr.min()), float(arr.max())
                 if hi > lo:
                     return ((arr - lo) / (hi - lo) * 255).astype(np.uint8)
                 return np.zeros(arr.shape, dtype=np.uint8)
@@ -888,26 +956,31 @@ def run_checks(
 # ── Gradio interface ───────────────────────────────────────────────────────────
 
 _EDITOR_ACTIVE_HTML = (
-    '<p style="margin:2px 0 4px;font-size:0.8em;color:#f59e0b">'
-    "&#9432;&nbsp;Editor config active — config path &amp; revision above are ignored. "
-    "Click <b>Load config from path</b> to revert.</p>"
+    '<div style="background:rgba(245,197,24,0.12);border:1px solid #f5c518;'
+    'border-radius:4px;padding:5px 10px;margin:3px 0;font-size:0.8em;color:#f5c518">'
+    "&#9888;&nbsp;<b>Editor config active</b> — config path &amp; revision above are "
+    "ignored. Click <b>Load config from path</b> in the Config editor tab to revert."
+    "</div>"
 )
 
 
 def build_interface() -> "gr.Blocks":
     """Build and return the Gradio Blocks interface."""
 
-    logo = _logo_html(height=36)
+    logo = _logo_html(height=54)
 
     with gr.Blocks(title="zea visualizer") as demo:
         # ── Header ─────────────────────────────────────────────────────────
         gr.HTML(
-            f'<div style="display:flex;align-items:center;padding:8px 0 4px;'
-            f'border-bottom:2px solid {_PURPLE};margin-bottom:6px">'
-            f"{logo}"
+            f'<div style="display:flex;align-items:flex-end;padding:8px 0 4px;'
+            f'margin-bottom:6px">'
+            f'<div style="flex-shrink:0;margin-right:10px">{logo}</div>'
+            f'<div style="display:flex;align-items:center;'
+            f'border-bottom:2px solid {_PURPLE};flex:1;padding-bottom:5px">'
             f'<span style="font-size:1.35em;font-weight:700;color:{_PURPLE}">zea</span>'
             f'<span style="font-size:1.35em;font-weight:400;margin-left:5px">'
             f"dataset visualizer</span>"
+            f"</div>"
             f"</div>"
         )
 
@@ -930,9 +1003,6 @@ def build_interface() -> "gr.Blocks":
                             info="Select a preset to auto-fill fields below.",
                         )
                         gr.HTML('<hr style="border-color:#374151;margin:4px 0">')
-
-                        # Config source indicator (hidden until editor is active)
-                        editor_indicator = gr.HTML("", visible=False)
 
                         with gr.Row():
                             dataset_input = gr.Textbox(
@@ -970,6 +1040,9 @@ def build_interface() -> "gr.Blocks":
                                 elem_classes=["revision-dropdown"],
                             )
 
+                        # Shows when config editor overrides the config path
+                        editor_indicator = gr.HTML("", visible=False)
+
                         file_selector = gr.Dropdown(
                             label="File",
                             choices=[],
@@ -1004,19 +1077,25 @@ def build_interface() -> "gr.Blocks":
                                 value=0,
                                 step=1,
                                 interactive=False,
+                                elem_classes=["frame-slider"],
                             )
                             n_frames_input = gr.Slider(
-                                label="N frames (>1 → GIF)",
+                                label="# frames (>1 → GIF)",
                                 minimum=1,
                                 maximum=999,
                                 value=1,
                                 step=1,
                                 interactive=False,
+                                elem_classes=["frame-slider"],
                             )
 
                         with gr.Row():
                             run_btn = gr.Button(
-                                "Run", variant="primary", scale=3, interactive=False
+                                "Run",
+                                variant="primary",
+                                scale=3,
+                                interactive=False,
+                                elem_classes=["run-btn"],
                             )
                             stop_btn = gr.Button("Stop", variant="stop", scale=1, interactive=False)
 
@@ -1067,7 +1146,8 @@ def build_interface() -> "gr.Blocks":
                     gr.update(choices=_DATA_KEYS),
                 )
             names, paths = _list_dataset_files(path)
-            file_update = gr.update(choices=names, value=None, interactive=bool(names))
+            auto_val = names[0] if len(names) == 1 else None
+            file_update = gr.update(choices=names, value=auto_val, interactive=bool(names))
             _reset_key = gr.update(choices=_DATA_KEYS, value=None, interactive=False)
             if not _is_hf(path):
                 return (
@@ -1273,6 +1353,7 @@ def build_interface() -> "gr.Blocks":
             [],  # track_labels_state
             gr.update(interactive=False),  # run_btn
             gr.update(choices=_DATA_KEYS, value=None, interactive=False),  # key_input
+            gr.update(value=None),  # image_output
         )
 
         def _on_file_select_gen(selected_name, file_paths, key, ds_revision):
@@ -1288,7 +1369,7 @@ def build_interface() -> "gr.Blocks":
                 yield _NO_FILE
                 return
 
-            # Step 1: show loading indicator, disable run until load completes
+            # Step 1: clear image + show loading indicator, disable run until load completes
             yield (
                 gr.update(interactive=False),
                 gr.update(interactive=False),
@@ -1297,10 +1378,14 @@ def build_interface() -> "gr.Blocks":
                 [],
                 gr.update(interactive=False),
                 gr.update(),
+                gr.update(value=None),  # image_output — clear previous result
             )
 
             # Step 2: download at correct revision + read metadata
-            yield _file_load_updates(fpath, ds_revision or None, key)
+            sf, nf, meta, trk, tlbls, run_upd, key_upd = _file_load_updates(
+                fpath, ds_revision or None, key
+            )
+            yield sf, nf, meta, trk, tlbls, run_upd, key_upd, gr.update()
 
         file_select_event = file_selector.change(
             _on_file_select_gen,
@@ -1313,6 +1398,7 @@ def build_interface() -> "gr.Blocks":
                 track_labels_state,
                 run_btn,
                 key_input,
+                image_output,
             ],
         )
 

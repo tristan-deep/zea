@@ -3,7 +3,9 @@
 Usage::
 
     zea process <dataset> <save_dir> [options]   # batch beamform a dataset
-    zea app [--share] [--server_port PORT]        # launch the Gradio visualizer
+    zea app [--share] [--server_port PORT]       # launch the Gradio visualizer
+    zea --device DEVICE process ...              # specify device for processing, e.g.
+                                                 # 'cuda:0', 'cpu', or 'auto:1' (default)
 
 """
 
@@ -19,6 +21,17 @@ def get_parser() -> argparse.ArgumentParser:
     )
     subparsers = parser.add_subparsers(dest="command", metavar="command")
     subparsers.required = True
+
+    # ── device  ──────────────────────────────────────────────────────────────
+    parser.add_argument(
+        "--device",
+        type=str,
+        default="auto:1",
+        help=(
+            "Device to use for processing. Can be a specific device (e.g. 'cuda:0', 'cpu') "
+            "or 'auto:1' to automatically select the best available device."
+        ),
+    )
 
     # ── process ──────────────────────────────────────────────────────────────
     from zea.data.process import get_parser as _process_parser
@@ -53,11 +66,13 @@ def main() -> None:
     """Dispatch to the requested subcommand."""
     args = get_parser().parse_args()
 
+    from zea.internal.device import init_device
+
+    init_device(args.device)
+
     if args.command == "process":
         from zea.data.process import run_processing
-        from zea.internal.device import init_device
 
-        init_device()
         config_path = args.config or f"{args.dataset}/config.yaml"
         run_processing(
             args.dataset,
@@ -77,11 +92,9 @@ def main() -> None:
 
     elif args.command == "app":
         from zea.data.app import CSS, build_interface
-        from zea.internal.device import init_device
 
         import gradio as gr
 
-        init_device()
         demo = build_interface()
         demo.launch(
             share=args.share,

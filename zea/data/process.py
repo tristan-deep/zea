@@ -177,6 +177,7 @@ def _run_passthrough(
     """Save data frames directly without a beamforming pipeline."""
     if save_as not in ("gif", "mp4", "hdf5"):
         raise ValueError(f"Passthrough mode only supports gif/mp4/hdf5, got {save_as!r}")
+    save_dir.mkdir(parents=True, exist_ok=True)
 
     ds = Dataset(dataset_path, validate=False, **hf_kwargs)
     file_paths = list(ds.file_paths)
