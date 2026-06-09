@@ -333,6 +333,8 @@ def generate() -> str:
 
     # --- Group reference tabs -------------------------------------------------
     lines += [
+        ".. _group-reference:",
+        "",
         "Group reference",
         "~~~~~~~~~~~~~~~",
         "",

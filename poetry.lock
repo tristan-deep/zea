@@ -4845,18 +4845,6 @@ files = [
 ]
 
 [[package]]
-name = "schema"
-version = "0.7.7"
-description = "Simple data validation library"
-optional = false
-python-versions = "*"
-groups = ["main"]
-files = [
-    {file = "schema-0.7.7-py2.py3-none-any.whl", hash = "sha256:5d976a5b50f36e74e2157b47097b60002bd4d42e65425fcc9c9befadb4255dde"},
-    {file = "schema-0.7.7.tar.gz", hash = "sha256:7da553abd2958a19dc2547c388cde53398b39196175a9be59ea1caf5ab0a1807"},
-]
-
-[[package]]
 name = "scikit-image"
 version = "0.25.2"
 description = "Image processing in Python"
@@ -6603,4 +6591,4 @@ tests = ["cloudpickle", "ipykernel", "ipywidgets", "papermill", "pre-commit", "p
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.10"
-content-hash = "a648f00164dcfbfc0536e7f41777cf541038a8f79fe23cf61e9df6657fb9ea84"
+content-hash = "60a46030adde29c96e70b0ecb3a7bfe07d7803381cccd29193932798f33d95da"
