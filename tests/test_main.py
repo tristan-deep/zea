@@ -118,6 +118,6 @@ def test_app_defaults():
 
 
 def test_app_flags():
-    args = _parser().parse_args(["app", "--share", "--server_port", "7861"])
+    args = _parser().parse_args(["app", "--share", "--server-port", "7861"])
     assert args.share is True
     assert args.server_port == 7861

@@ -119,7 +119,10 @@ footer { display: none !important; }
 .run-btn:hover { background: #e6b800 !important; border-color: #e6b800 !important; }
 .run-btn:disabled { background: #5a4a00 !important; border-color: #5a4a00 !important;
   color: #888 !important; opacity: 0.5 !important; }
-.frame-slider input[type=number], .frame-slider button { display: none !important; }
+.frame-slider input[type=number] {
+  pointer-events: none !important; background: transparent !important;
+  border: none !important; box-shadow: none !important; cursor: default !important; }
+.frame-slider button { display: none !important; }
 """
 
 _SCROLL_JS = """
@@ -595,11 +598,11 @@ def _file_load_updates(fpath: str, revision: str | None, key: str) -> tuple:
         nf_upd = gr.update(value=1, interactive=False)
 
     if n_tracks > 1 and track_labels:
-        track_upd = gr.update(
-            choices=track_labels, value=track_labels[0], visible=True, interactive=True
-        )
+        # Use numeric indices as values so duplicate labels don't break selection.
+        choices = [(label, i) for i, label in enumerate(track_labels)]
+        track_upd = gr.update(choices=choices, value=0, visible=True, interactive=True)
     else:
-        track_upd = gr.update(choices=["track 0"], value="track 0", visible=True, interactive=False)
+        track_upd = gr.update(choices=[("track 0", 0)], value=0, visible=True, interactive=False)
 
     return (
         sf_upd,
@@ -1411,10 +1414,10 @@ def build_interface() -> "gr.Blocks":
         )
 
         # Track changed → update frame sliders for that track's n_frames
-        def _on_track_change(track_name, track_labels, selected_file, file_paths, ds_revision):
-            # selected_file is the full path (dropdown value), not the basename.
+        def _on_track_change(track_id, track_labels, selected_file, file_paths, ds_revision):
+            # track_id is the numeric index emitted by the dropdown (None when unset).
             if (
-                not track_name
+                track_id is None
                 or not track_labels
                 or not selected_file
                 or not file_paths
@@ -1422,15 +1425,14 @@ def build_interface() -> "gr.Blocks":
             ):
                 return gr.update(), gr.update()
             try:
-                t_idx = list(track_labels).index(track_name)
-            except ValueError:
-                return gr.update(), gr.update()
-            try:
                 local = _resolve_file_path(selected_file, ds_revision or None)
                 with File(local) as f:
-                    n = f.tracks[t_idx].n_frames
+                    n = f.tracks[int(track_id)].n_frames
                 if n > 1:
-                    return gr.update(maximum=n - 1, value=0), gr.update(maximum=n, value=1)
+                    return (
+                        gr.update(maximum=n - 1, value=0, interactive=True),
+                        gr.update(maximum=n, value=1, interactive=True),
+                    )
                 # Single (or zero) frame: also reset the maxima so they don't
                 # retain a previous long track's range.
                 return (
@@ -1527,10 +1529,10 @@ def build_interface() -> "gr.Blocks":
                 raise gr.Warning("Selected file is no longer available. Please reselect a file.")
             file_index = file_paths.index(file_name)
 
-            # Resolve track index
+            # Resolve track index — track_name is the numeric ID emitted by the dropdown.
             track_index = 0
-            if track_name and track_labels and track_name in list(track_labels):
-                track_index = list(track_labels).index(track_name)
+            if track_name is not None and track_labels:
+                track_index = int(track_name)
 
             try:
                 for html, img in run_checks(
