@@ -44,6 +44,7 @@ dependencies = [
     "pyyaml >=6",
     "decorator >=5",
     "huggingface_hub >=0.26",
+    "tyro >=0.9",
     "wandb >=0.18",
     "wget >=3.2",
     "imageio[ffmpeg] >=2.0",
@@ -84,6 +85,8 @@ dev = [
     "opencv-python-headless>=4",
     # models
     "onnxruntime>=1.15",
+    # app
+    "gradio>=6.0",
 ]
 
 tests = [
@@ -96,6 +99,7 @@ tests = [
     "pre-commit",
     "ruff==0.15.15",
     "pytest-cov",
+    "gradio>=6.0",
 ]
 docs = [
     "sphinx",
@@ -126,6 +130,9 @@ display-headless = [
 # but some do, so we list them here
 models = [
     "onnxruntime>=1.15",
+]
+app = [
+    "gradio>=6.0",
 ]
 # these are just here for .readthedocs.yaml
 # please for proper install (with GPU support)

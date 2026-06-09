@@ -37,6 +37,7 @@ autodoc_mock_imports = [
     "tensorflow",
     "torch",
     "zea.backend.tf2jax",
+    "gradio",
 ]
 
 exclude_patterns = [
