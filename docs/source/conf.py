@@ -158,11 +158,16 @@ def _skip_reexported_members(app, what, name, obj, skip, options):
        (see ``TOPLEVEL_API_ALIASES``), so the copy in the defining submodule is
        hidden to keep a single, unambiguous cross-reference target.
 
-    2. ``zea.scan.Parameters`` properties that duplicate ``ScanSpec`` fields are
+    2. ``zea.Parameters`` computed properties that duplicate ``ScanSpec`` fields are
        excluded so Sphinx does not register two targets for the same name.
+       These use ``@cache_with_dependencies`` (not ``@property``), so we match by
+       name rather than by type. The class appears as either ``zea.Parameters`` or
+       ``zea.scan.Parameters`` depending on which page Sphinx is generating.
 
     3. ``VerasonicsProbe`` attributes in ``_VERASONICS_PROBE_EXCLUDE`` are skipped
        so Sphinx does not register duplicate targets shared with ``ProbeSpec``/``Subject``.
+       Checked outside the ``what == "attribute"`` guard because Sphinx may classify
+       ``@property`` members as ``"method"`` across different versions.
 
     Returns ``None`` (rather than ``skip``) for everything else so the default
     filtering still applies.
@@ -172,15 +177,19 @@ def _skip_reexported_members(app, what, name, obj, skip, options):
         if canonical in _REEXPORTED_CANONICALS:
             return True
 
-    if what == "attribute":
-        attr_name = name.rsplit(".", 1)[-1]
-        if isinstance(obj, property):
-            # Skip Parameters properties that duplicate ScanSpec field names.
-            if attr_name in _PARAMETERS_SCANSPEC_ALIASES and "zea.scan.Parameters" in name:
-                return True
-        # Skip VerasonicsProbe attributes that duplicate ProbeSpec/Subject targets.
-        if attr_name in _VERASONICS_PROBE_EXCLUDE and "VerasonicsProbe" in name:
+    attr_name = name.rsplit(".", 1)[-1]
+
+    # Skip Parameters computed properties that duplicate ScanSpec field names.
+    # Match by name: parent ends with ".Parameters" to cover both zea.Parameters
+    # and zea.scan.Parameters without being version-dependent on obj type or what.
+    if attr_name in _PARAMETERS_SCANSPEC_ALIASES:
+        parent = name.rsplit(".", 1)[0]
+        if parent.endswith(".Parameters"):
             return True
+
+    # Skip VerasonicsProbe attributes that duplicate ProbeSpec/Subject targets.
+    if attr_name in _VERASONICS_PROBE_EXCLUDE and "VerasonicsProbe" in name:
+        return True
 
     return None
 

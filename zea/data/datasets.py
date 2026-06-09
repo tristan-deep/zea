@@ -503,6 +503,11 @@ class Dataset(H5FileHandleCache):
                 file_paths += folder.file_paths
                 del folder
             elif file_path.is_file():
+                if str(file_path).startswith(HF_PREFIX):
+                    hf_kwargs = {}
+                    if self.revision is not None:
+                        hf_kwargs["revision"] = self.revision
+                    file_path = _hf_resolve_path(str(file_path), **hf_kwargs)
                 file_paths.append(str(file_path))
                 with File(file_path) as file:
                     if self.validate:
