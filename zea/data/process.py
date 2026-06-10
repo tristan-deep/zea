@@ -435,7 +435,8 @@ def run_processing(
                 prev_file_path = file_path
                 with File(file_path) as f:
                     filestem = f.stem
-                    parameters = f.load_parameters(**config_params)
+                    parameters = f.load_parameters()
+                parameters.update(config_params)
 
                 selected_transmits = np.array([int(t) for t in parameters.selected_transmits])
                 try:

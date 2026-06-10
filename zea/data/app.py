@@ -820,11 +820,13 @@ def run_checks(
                 n_tracks = f._n_tracks
                 if n_tracks > 1:
                     track = f.tracks[track_index]
-                    parameters = _run_quiet(track.load_parameters, **config_params)
+                    parameters = _run_quiet(track.load_parameters)
+                    parameters.update(config_params)
                     bare = key.removeprefix("data/")
                     _data_key = f"tracks/track_{track_index}/data/{bare}"
                 else:
-                    parameters = _run_quiet(f.load_parameters, **config_params)
+                    parameters = _run_quiet(f.load_parameters)
+                    parameters.update(config_params)
                     _data_key = f.format_key(key)
             else:
                 _data_key = f.format_key(key)
