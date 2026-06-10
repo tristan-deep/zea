@@ -115,7 +115,12 @@ def main() -> None:
         )
 
     elif isinstance(args, AppArgs):
-        import gradio as gr
+        try:
+            import gradio as gr
+        except ImportError as exc:
+            raise ImportError(
+                "gradio is required for the zea app. Install with: pip install 'zea[app]'"
+            ) from exc
 
         from zea.data.app import CSS, build_interface
 
