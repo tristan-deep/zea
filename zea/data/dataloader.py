@@ -7,7 +7,7 @@ Example:
 
         loader = zea.Dataloader(
             file_paths="/path/to/dataset",
-            key="data/image",
+            key="data/image/values",
             batch_size=16,
             image_range=(-60, 0),
             normalization_range=(0, 1),
@@ -202,6 +202,7 @@ class H5DataSource:
         return_filename: Return filename metadata with each sample.
         cache: Cache loaded samples to RAM.
         validate: Validate dataset against the zea format.
+        revision: HuggingFace revision (branch, tag, or commit hash) for ``hf://`` paths.
     """
 
     def __init__(
@@ -221,6 +222,7 @@ class H5DataSource:
         return_filename: bool = False,
         cache: bool = False,
         validate: bool = True,
+        revision: str | None = None,
         **kwargs,
     ):
         self.return_filename = return_filename
@@ -239,7 +241,16 @@ class H5DataSource:
         assert self.n_frames > 0, f"`n_frames` must be > 0, got {self.n_frames}"
 
         # Discover files and shapes (reuses Dataset machinery)
-        _dataset = Dataset(file_paths, validate=validate, **kwargs)
+        lazy = kwargs.pop("lazy", False)
+        if lazy:
+            raise ValueError(
+                "lazy=True is not supported in Dataloader / H5DataSource. "
+                "All files must be downloaded before building the data pipeline. "
+                "Use Dataset(..., lazy=True) directly for interactive use."
+            )
+        _dataset = Dataset(
+            file_paths, validate=validate, revision=revision, _suggest_lazy=False, **kwargs
+        )
         self.file_paths = _dataset.file_paths
         self.file_shapes = _dataset.load_file_shapes(key)
         _dataset.close()
@@ -284,12 +295,12 @@ class H5DataSource:
         file = file_handle_cache.get_file(file_name)
 
         try:
-            images = file.load_data(key, indices)
+            images = file[key][indices]
         except (OSError, IOError):
             # Invalidate cache entry and retry once
             file_handle_cache.pop(file_name)
             file = file_handle_cache.get_file(file_name)
-            images = file.load_data(key, indices)
+            images = file[key][indices]
 
         if self.insert_frame_axis:
             initial = self.initial_frame_axis
@@ -423,6 +434,8 @@ class Dataloader:
             Default is ``-1``.
         validate: Validate discovered files against the zea format.
             Default is ``True``.
+        revision: HuggingFace revision (branch, tag, or commit hash) for ``hf://`` paths.
+            Defaults to ``None`` (uses the default branch, typically ``"main"``).
         prefetch: Enable Grain prefetching for iteration. Default is ``True``.
         shard_index: Shard index to select when ``num_shards > 1``.
             Must satisfy ``0 <= shard_index < num_shards``.
@@ -444,7 +457,7 @@ class Dataloader:
 
             loader = Dataloader(
                 file_paths="/data/camus",
-                key="data/image_sc",
+                key="data/image/values",
                 batch_size=32,
                 image_range=(-60, 0),
                 normalization_range=(0, 1),
@@ -485,6 +498,7 @@ class Dataloader:
         frame_index_stride: int = 1,
         frame_axis: int = -1,
         validate: bool = True,
+        revision: str | None = None,
         prefetch: bool = True,
         shard_index: int | None = None,
         num_shards: int = 1,
@@ -537,6 +551,7 @@ class Dataloader:
             return_filename=return_filename,
             cache=cache,
             validate=validate,
+            revision=revision,
             **kwargs,
         )
 
@@ -572,6 +587,12 @@ class Dataloader:
             )
 
         self._map_dataset = self._build_pipeline(seed)
+
+        if len(self._map_dataset) == 0:
+            raise ValueError(
+                "Dataloader produced no samples. Check that the dataset is non-empty "
+                "and that the filters/transforms do not discard all items."
+            )
 
         if return_filename:
             self._shape = self._map_dataset[0][0].shape
@@ -678,10 +699,10 @@ class Dataloader:
 
     def __repr__(self):
         return (
-            f"<Dataloader: {len(self.source)} samples, "
+            f"Dataloader(n_samples={len(self.source)}, "
             f"batch_size={self.batch_size}, "
             f"key='{self.source.key}', "
-            f"threads={self.num_threads}>"
+            f"threads={self.num_threads})"
         )
 
     @staticmethod

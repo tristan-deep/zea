@@ -6,8 +6,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import pytest
 
-from zea.data.data_format import generate_example_dataset  # noqa: E402
-from zea.internal.device import backend_cuda_available  # noqa: E402
+from zea.internal.device import backend_cuda_available
 
 # Capture GPU availability NOW, before tests/__init__.py sets CUDA_VISIBLE_DEVICES=""
 _GPU_AVAILABLE = any(backend_cuda_available(b) for b in ["torch", "tensorflow", "jax"])
@@ -19,6 +18,7 @@ from . import (  # noqa: E402
     _notebook_timings,
     backend_workers,
 )
+from .data import generate_example_dataset  # noqa: E402
 
 plt.rcParams["backend"] = "agg"
 

@@ -3,11 +3,11 @@ import numpy as np
 from matplotlib import animation
 
 from zea.io_lib import save_to_gif
-from zea.scan import Scan
+from zea.scan import Parameters
 
 
 def animate_images(
-    images, path, scan: Scan = None, interval=100, cmap="gray", figsize=(5, 4), dpi=80
+    images, path, scan: Parameters = None, interval=100, cmap="gray", figsize=(5, 4.6), dpi=80
 ):
     """Helper function to animate a list of images."""
     if interval <= 0:
@@ -16,7 +16,9 @@ def animate_images(
         raise ValueError("images must be a non-empty sequence.")
     fig, ax = plt.subplots(figsize=figsize, dpi=dpi)
     if scan is not None:
-        extent = scan.extent * 1e3 if getattr(scan, "extent") is not None else None
+        extent = (
+            scan.extent_imshow * 1e3 if getattr(scan, "extent_imshow", None) is not None else None
+        )
     else:
         extent = None
     im = ax.imshow(np.array(images[0]), animated=True, cmap=cmap, extent=extent)

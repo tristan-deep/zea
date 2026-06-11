@@ -4,7 +4,7 @@ build-backend = "poetry.core.masonry.api"
 
 [project]
 name = "zea"
-version = "0.0.13"
+version = "0.1.0a2"
 description = "A Toolbox for Cognitive Ultrasound Imaging. Provides a set of tools for processing of ultrasound data, all built in your favorite machine learning framework."
 authors = [
     { name = "Tristan Stevens", email = "t.s.w.stevens@tue.nl" },
@@ -40,11 +40,11 @@ dependencies = [
     "matplotlib >=3.8",
     "scipy >=1.13",
     "pillow >=12.2.0",
-    "schema >=0.7",
     "tqdm >=4",
     "pyyaml >=6",
     "decorator >=5",
     "huggingface_hub >=0.26",
+    "tyro >=0.9",
     "wandb >=0.18",
     "wget >=3.2",
     "imageio[ffmpeg] >=2.0",
@@ -85,6 +85,8 @@ dev = [
     "opencv-python-headless>=4",
     # models
     "onnxruntime>=1.15",
+    # app
+    "gradio>=6.0",
 ]
 
 tests = [
@@ -97,6 +99,7 @@ tests = [
     "pre-commit",
     "ruff==0.15.15",
     "pytest-cov",
+    "gradio>=6.0",
 ]
 docs = [
     "sphinx",
@@ -127,6 +130,9 @@ display-headless = [
 # but some do, so we list them here
 models = [
     "onnxruntime>=1.15",
+]
+app = [
+    "gradio>=6.0",
 ]
 # these are just here for .readthedocs.yaml
 # please for proper install (with GPU support)
@@ -250,8 +256,13 @@ markers = [
     "gpu: marks tests that exercise real GPU hardware (most meaningful offline; in CI CUDA_VISIBLE_DEVICES=\"\" forces CPU)",
 ]
 filterwarnings = [
+    "ignore:.*SwigPyPacked.*:DeprecationWarning",
+    "ignore:.*SwigPyObject.*:DeprecationWarning",
+    "ignore:.*swigvarlink.*:DeprecationWarning",
     "ignore::DeprecationWarning:jupyter_client.*",
     "ignore::DeprecationWarning:papermill.*",
+    "ignore:.*__array__ implementation doesn't accept a copy keyword.*:DeprecationWarning",
+    "ignore:.*os\\.fork\\(\\) was called.*:RuntimeWarning",
 ]
 
 [tool.coverage.report]
