@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - main
+      - openh-rf
 
 env:
   REGISTRY: ghcr.io
@@ -28,6 +29,7 @@ jobs:
       packages: write
     outputs:
       docker_image: ${{ steps.set-image.outputs.docker_image }}
+      needs_artifact: ${{ steps.set-image.outputs.needs_artifact }}
     steps:
       - name: Debug repository context
         run: |
@@ -50,12 +52,12 @@ jobs:
           echo "Disk space after cleanup:"
           df -h
 
+      # Always checkout — fork PRs need it for diff detection and local builds
       - name: Checkout repository
-        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
         uses: actions/checkout@v6
 
+      # Always set up buildx — fork PRs need it for local builds
       - name: Set up Docker Buildx
-        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
         uses: docker/setup-buildx-action@v4
 
       - name: Log in to GitHub Container Registry
@@ -82,23 +84,75 @@ jobs:
           tags: |
             ${{ env.BASE_IMAGE }}:${{ needs.tag.outputs.docker_tag }}
             ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && format('{0}:latest', env.BASE_IMAGE) || '' }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+            ${{ github.event_name == 'push' && format('{0}:{1}', env.BASE_IMAGE, github.ref_name) || '' }}
+          cache-from: type=registry,ref=ghcr.io/tue-bmd/zea/build-cache:all-cpu
+          cache-to: type=registry,ref=ghcr.io/tue-bmd/zea/build-cache:all-cpu,mode=max
+
+      # Fork PRs: detect whether Dockerfile or dependency files changed vs base branch.
+      # If unchanged, the existing base-branch image is fully compatible — no build needed.
+      - name: Check if image needs rebuilding (fork PR)
+        id: image-check
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository
+        run: |
+          git fetch origin ${{ github.event.pull_request.base.ref }}
+          if git diff --quiet origin/${{ github.event.pull_request.base.ref }} -- Dockerfile pyproject.toml poetry.lock; then
+            echo "changed=false" >> $GITHUB_OUTPUT
+            echo "ℹ️ No image-relevant files changed — will reuse base branch image"
+          else
+            echo "changed=true" >> $GITHUB_OUTPUT
+            echo "ℹ️ Image-relevant files changed — will build locally"
+          fi
+
+      # Fork PRs: build image locally (no push) only when deps/Dockerfile actually changed.
+      # Reads from the registry build cache so hits are fast even without write access.
+      - name: Build CI Docker image (fork PR)
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && steps.image-check.outputs.changed == 'true'
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: Dockerfile
+          build-args: |
+            INSTALL_JAX=cpu
+            INSTALL_TORCH=cpu
+            INSTALL_TF=cpu
+            DEV=true
+          push: false
+          tags: zea-fork:local
+          outputs: type=docker,dest=/tmp/fork-image.tar
+          cache-from: type=registry,ref=ghcr.io/tue-bmd/zea/build-cache:all-cpu
+
+      - name: Upload fork PR image artifact
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && steps.image-check.outputs.changed == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: fork-pr-image
+          path: /tmp/fork-image.tar
+          retention-days: 1
 
       - name: Set Docker image for tests
         id: set-image
         run: |
-          # Check if this is a fork PR or main repo
           if [ "${{ github.event_name }}" = "pull_request" ] && [ "${{ github.event.pull_request.head.repo.full_name }}" != "${{ github.repository }}" ]; then
-            # Fork PR - use latest public image
-            DOCKER_IMAGE="${{ env.BASE_IMAGE }}:latest"
-            echo "✅ Fork PR: Using latest public image: $DOCKER_IMAGE"
+            # Fork PR
+            if [ "${{ steps.image-check.outputs.changed }}" = "true" ]; then
+              # Deps/Dockerfile changed: use the locally built image (loaded from artifact by test jobs)
+              DOCKER_IMAGE="zea-fork:local"
+              NEEDS_ARTIFACT="true"
+              echo "✅ Fork PR (image changed): using locally built image"
+            else
+              # No image change: reuse the pre-built image for the target branch
+              DOCKER_IMAGE="${{ env.BASE_IMAGE }}:${{ github.event.pull_request.base.ref }}"
+              NEEDS_ARTIFACT="false"
+              echo "✅ Fork PR (no image change): reusing $DOCKER_IMAGE"
+            fi
           else
-            # Main repo (push or PR from same repo) - use newly built tagged image
+            # Same-repo PR or push: use the freshly built tagged image
             DOCKER_IMAGE="${{ env.BASE_IMAGE }}:${{ needs.tag.outputs.docker_tag }}"
-            echo "✅ Main repo: Using newly built tagged image: $DOCKER_IMAGE"
+            NEEDS_ARTIFACT="false"
+            echo "✅ Main repo: using $DOCKER_IMAGE"
           fi
           echo "docker_image=$DOCKER_IMAGE" >> $GITHUB_OUTPUT
+          echo "needs_artifact=$NEEDS_ARTIFACT" >> $GITHUB_OUTPUT
 
   tests:
     needs: [image]
@@ -110,6 +164,16 @@ jobs:
 
       - name: Set up Git
         run: git config --global safe.directory $GITHUB_WORKSPACE
+
+      - name: Download fork PR image artifact
+        if: needs.image.outputs.needs_artifact == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: fork-pr-image
+
+      - name: Load Docker image
+        if: needs.image.outputs.needs_artifact == 'true'
+        run: docker load < fork-image.tar
 
       - name: Run Pytest in container
         run: |
@@ -136,6 +200,16 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
+
+      - name: Download fork PR image artifact
+        if: needs.image.outputs.needs_artifact == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: fork-pr-image
+
+      - name: Load Docker image
+        if: needs.image.outputs.needs_artifact == 'true'
+        run: docker load < fork-image.tar
 
       - name: Run heavy tests
         run: |
@@ -185,6 +259,16 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
+      - name: Download fork PR image artifact
+        if: needs.image.outputs.needs_artifact == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: fork-pr-image
+
+      - name: Load Docker image
+        if: needs.image.outputs.needs_artifact == 'true'
+        run: docker load < fork-image.tar
+
       - name: Run ${{ matrix.name }} notebook tests
         run: |
           DIRS_ARGS=$(echo "${{ matrix.dirs }}" | tr ' ' '\n' | sed 's/^/--notebook-dir /' | tr '\n' ' ')
@@ -210,6 +294,16 @@ jobs:
       - name: Set up Git
         run: git config --global safe.directory $GITHUB_WORKSPACE
 
+      - name: Download fork PR image artifact
+        if: needs.image.outputs.needs_artifact == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: fork-pr-image
+
+      - name: Load Docker image
+        if: needs.image.outputs.needs_artifact == 'true'
+        run: docker load < fork-image.tar
+
       - name: Build documentation with Sphinx (fails on warnings)
         run: |
           docker run --rm \
@@ -221,6 +315,7 @@ jobs:
               sudo apt-get install -y pandoc && \
               pip install -e ..[docs] && \
               export PATH=\"/tmp/.local/bin:\$PATH\" && \
+              export ZEA_LOG_LEVEL=ERROR && \
               make docs-clean && \
               make docs-build SPHINXOPTS='-W --keep-going' && \
               make docs-test \
