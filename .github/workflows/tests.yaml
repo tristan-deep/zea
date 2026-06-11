@@ -59,9 +59,11 @@ jobs:
       - name: Check if image needs rebuilding (fork PR)
         id: image-check
         if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
         run: |
-          git fetch origin ${{ github.event.pull_request.base.ref }}
-          if git diff --quiet origin/${{ github.event.pull_request.base.ref }} -- Dockerfile pyproject.toml poetry.lock; then
+          git fetch origin "$BASE_REF"
+          if git diff --quiet "origin/$BASE_REF" -- Dockerfile pyproject.toml poetry.lock; then
             # Verify the branch-tagged image actually exists before deciding to reuse it.
             # It may be absent on first run after this workflow feature was introduced.
             BASE_TAG="${{ env.BASE_IMAGE }}:${{ github.event.pull_request.base.ref }}"
