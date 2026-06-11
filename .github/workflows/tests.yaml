@@ -62,8 +62,16 @@ jobs:
         run: |
           git fetch origin ${{ github.event.pull_request.base.ref }}
           if git diff --quiet origin/${{ github.event.pull_request.base.ref }} -- Dockerfile pyproject.toml poetry.lock; then
-            echo "changed=false" >> $GITHUB_OUTPUT
-            echo "No image-relevant files changed — reusing base branch image"
+            # Verify the branch-tagged image actually exists before deciding to reuse it.
+            # It may be absent on first run after this workflow feature was introduced.
+            BASE_TAG="${{ env.BASE_IMAGE }}:${{ github.event.pull_request.base.ref }}"
+            if docker manifest inspect "$BASE_TAG" > /dev/null 2>&1; then
+              echo "changed=false" >> $GITHUB_OUTPUT
+              echo "No image-relevant files changed — reusing $BASE_TAG"
+            else
+              echo "changed=true" >> $GITHUB_OUTPUT
+              echo "Branch image $BASE_TAG not found — building locally"
+            fi
           else
             echo "changed=true" >> $GITHUB_OUTPUT
             echo "Image-relevant files changed — building locally"
