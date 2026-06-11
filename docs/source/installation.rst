@@ -8,11 +8,19 @@ Besides installation through `PyPI <https://pypi.org/project/zea>`_, we also pro
 
     .. tab-item:: uv
 
-         `uv <https://docs.astral.sh/uv/>`_ is a fast package and environment manager.
+         Add ``zea`` to your project with `uv <https://docs.astral.sh/uv/>`_, which
+         manages the environment and lockfile for you (run ``uv init`` first if you
+         don't have a project yet):
 
          .. code-block:: shell
 
-               uv venv            # create an environment
+               uv add zea
+
+         Or install it into a plain environment, like ``pip``:
+
+         .. code-block:: shell
+
+               uv venv
                uv pip install zea
 
     .. tab-item:: pip

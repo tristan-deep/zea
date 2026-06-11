@@ -58,9 +58,9 @@ Set up your development environment. We recommend using Docker as described in t
    uv sync --extra dev
    uv run pre-commit install
 
-This creates a ``.venv`` with the exact locked dependencies. Prefix commands with ``uv run`` (e.g. ``uv run pytest``) or activate the environment with ``source .venv/bin/activate``.
+This creates a ``.venv`` with the exact locked dependencies and installs ``zea`` itself in **editable** mode, so your changes to the source take effect immediately without reinstalling. Prefix commands with ``uv run`` (e.g. ``uv run pytest``) or activate the environment with ``source .venv/bin/activate``.
 
-Alternatively, install into any existing environment (``venv``, ``conda``, ...) with plain ``pip``:
+Alternatively, install into any existing environment (``venv``, ``conda``, ...) with plain ``pip``. The ``-e`` flag is what makes the install editable:
 
 .. code-block:: shell
 
