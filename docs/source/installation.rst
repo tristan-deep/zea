@@ -6,12 +6,10 @@ Besides installation through `PyPI <https://pypi.org/project/zea>`_, we also pro
 
 .. tab-set::
 
-    .. tab-item:: Conda / Pip
+    .. tab-item:: Pip
 
          .. code-block:: shell
 
-               conda create -n zea python=3.12 # 3.10, 3.11, or 3.12
-               conda activate zea
                pip install zea
                # ! note, you still need to install a backend
                # see below for details
@@ -22,6 +20,16 @@ Besides installation through `PyPI <https://pypi.org/project/zea>`_, we also pro
 
                docker pull zeahub/all:latest
                docker run --gpus 'all' -it zeahub/all:latest
+
+``zea`` is a regular Python package (Python >= 3.10) and installs with plain ``pip``.
+You do not need ``conda`` to use it. If you want an isolated environment, use whichever
+tool you prefer (``venv``, ``uv``, ``conda``, ...). For example, with conda:
+
+.. code-block:: shell
+
+   conda create -n zea python=3.12  # 3.10, 3.11, 3.12, or 3.13
+   conda activate zea
+   pip install zea
 
 
 .. _backend-installation:
