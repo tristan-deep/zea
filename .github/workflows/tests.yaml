@@ -2,6 +2,9 @@ name: Tests
 
 on:
   pull_request:
+  push:
+    branches:
+      - main
 
 env:
   REGISTRY: ghcr.io
@@ -78,14 +81,15 @@ jobs:
       # Free disk space before any docker build. Skipped for fork PRs reusing the base-branch image.
       - name: Free up disk space
         if: >
-          github.event.pull_request.head.repo.full_name == github.repository
+          github.event_name == 'push'
+          || github.event.pull_request.head.repo.full_name == github.repository
           || steps.image-check.outputs.changed == 'true'
         run: |
           sudo rm -rf "/usr/local/share/boost" "$AGENT_TOOLSDIRECTORY" /opt/hostedtoolcache
 
       - name: Build and push CI Docker image
         id: build
-        if: github.event.pull_request.head.repo.full_name == github.repository
+        if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
         uses: docker/build-push-action@v7
         with:
           context: .
